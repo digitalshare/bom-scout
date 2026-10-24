@@ -9,7 +9,7 @@ Use this when you recommend an actuator for a joint, or when the user asks how a
 
 1. Call `get_budget_inputs(joint, sku)` on the bomscout MCP server. It returns the build model (links with mass and centre of mass, joints with origin and axis, payload), the actuators with the candidate swapped in, the power supply, and the server's own answer.
 2. Write the result, minus `server_answer`, to `/tmp/budget_inputs.json` in the sandbox.
-3. Run `python3 /opt/tfy/skills/budget-maths/scripts/budget.py /tmp/budget_inputs.json`.
+3. Run `python3 /opt/tf/skills/budget-maths/scripts/budget.py /tmp/budget_inputs.json` (if that path is missing, `find / -path "*budget-maths/scripts/budget.py" 2>/dev/null`).
 4. Compare the output with `server_answer`. If they differ, say so and trust neither until you know why.
 
 How the maths works (explain it in one or two lines, no more):

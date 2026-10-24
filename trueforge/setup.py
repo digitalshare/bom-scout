@@ -106,7 +106,7 @@ def agent(model: str, servers: list[dict], skill_refs: list[dict]) -> None:
     }
     existing = next((a for a in call("GET", "/agents").get("data", []) if a.get("name") == AGENT), None)
     if existing:
-        call("PUT", f"/agents/{existing['id']}", body)
+        call("PUT", f"/agents/{existing['id']}", {k: v for k, v in body.items() if k != "name"})  # name is immutable
         print(f"agent: updated {AGENT} ({existing['id']})")
     else:
         created = call("POST", "/agents", body)

@@ -13,7 +13,7 @@ uv run python -m bomscout ask --trueforge "..."                # CLI; asks y/N a
 ```
 You can also open http://localhost:8790 and chat with the `bom-scout` agent directly.
 
-The `budget-maths` skill (`skills/budget-maths`) re-runs the torque and power maths in the Daytona sandbox. TrueForge loads skills only from git, so set `BOMSCOUT_SKILLS_REPO=https://github.com/<you>/<repo>` once it is pushed, then re-run setup.
+The `budget-maths` skill (`skills/budget-maths`) re-runs the torque and power maths in the Daytona sandbox. TrueForge loads skills from git: run setup with `BOMSCOUT_SKILLS_REPO=https://github.com/digitalshare/bom-scout`.
 
 ## Run locally (no TrueForge)
 ```
@@ -43,6 +43,5 @@ Env: `OPENAI_API_KEY`, `BRIGHTDATA_API_TOKEN`, `BRIGHTDATA_ZONE` (default `mcp_u
 Every scrape is written to `cache/offers/<vendor>/<sku>.json`. If a live fetch fails, the last good result is served and tagged `cache`.
 
 ## Not done yet
-- The `budget-maths` skill is not registered until the repo is on GitHub (see above).
 - The venue address in `samples/hackathon_arm/team.json` is a placeholder (zip 94103).
 - Stretch goal: Pit Crew multi-agent variant.
