@@ -31,6 +31,17 @@ uv run pytest
 ```
 Env: `OPENAI_API_KEY`, `BRIGHTDATA_API_TOKEN`, `BRIGHTDATA_ZONE` (default `mcp_unlocker`), `BOMSCOUT_MODEL` (default `gpt-5.5`).
 
+## 90-second demo
+Before going on stage: `uv run python -m bomscout prewarm` (fresh offers and photos), then start the MCP server and the UI on the TrueForge runtime.
+1. **Header** shows team, venue 94107, deadline 17:30, budget $150 and the broken elbow. "It's 2pm, the elbow servo just burned out."
+2. **Find parts.** The steps log streams the TrueForge agent's tool calls. Point at the **graph panel**: the broken XL430 (red ring), the candidates and the parts you own (blue). Click **XC430**: the orange path runs XL430 → Protocol 2.0 → X430 mount → your FR12 bracket → XC430 → its vendor offers.
+3. **Live offers (Bright Data)**: real prices and per-ZIP delivery dates. Nothing Dynamixel arrives today, and the agent says so.
+4. **Budget check**: torque passes at 3.6×, and all-stall current is a warning on the 5 A supply. The sandbox step re-runs the maths in Daytona with the `budget-maths` skill.
+5. **Approval**: the agent proposes today's fallback (the AX-12A you own, with its gaps) plus the XL430 arriving Tuesday. **Approve cart** resumes the TrueForge turn, and `add_to_cart` runs only now.
+6. Encore: **What if we lose → U2D2** lights up the chain that takes down all four joints.
+
+**If the network dies:** leave "Scrape vendors live" unticked. Offers come from the last scrape, marked `cache`, and a failed live scrape also falls back per vendor. The graph, budget and approval need no internet. The agent itself needs OpenAI.
+
 ## What the graph shows
 - **Web UI graph panel** (`GET /graph?joint=elbow`, Cytoscape). It shows the build, the broken part, every candidate and the protocol, connector, mount and driver nodes that link them. Parts you own get a blue ring, rejected candidates are faded, and live offers hang off their vendor. Click a candidate to highlight its path. "What if we lose…" (`GET /what-if/{sku}`) lights up the failure chain. For example, the only U2D2 → Protocol 2.0 → every XL430 joint.
 - **Part photos** are hotlinked from the vendor listings (robotis.us, Digi-Key, Amazon) and kept on `Part.image_url`. No image files are in this repo.

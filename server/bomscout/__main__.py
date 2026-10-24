@@ -33,6 +33,27 @@ def _print_events(events, trueforge: bool) -> str | None:
     return pending
 
 
+def prewarm(team: str, batch: int = 4) -> list[dict]:
+    """Live offers for every servo, adapter and bracket in the catalog, 4 skus at a time (Tools.get_offers also
+    writes the Offer nodes and part photos to the graph). Prints which vendor answered live, from cache, or failed."""
+    tools = agent.Tools(connect(), team, live=True)
+    skus = [p["sku"] for p in tools.catalog["parts"] if p["category"] in ("servo", "adapter", "bracket")]
+    results = []
+    for i in range(0, len(skus), batch):
+        results += tools.get_offers(skus[i:i + batch])["results"]
+        print(f"fetched {min(i + batch, len(skus))}/{len(skus)}", flush=True)
+    vendors = sorted({r["vendor"] for r in results})
+    print(f"\n{'sku':<16}" + "".join(f"{v:<22}" for v in vendors))
+    for sku in skus:
+        cells = []
+        for v in vendors:
+            r = next(r for r in results if r["sku"] == sku and r["vendor"] == v)
+            best = min((o["price_usd"] for o in r["offers"] if o["price_usd"] is not None), default=None)
+            cells.append(f"{r['source']}{' ERR' if r['error'] else ''}{f' ${best:.2f}' if best is not None else ' -'}")
+        print(f"{sku:<16}" + "".join(f"{c:<22}" for c in cells))
+    return results
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bomscout")
     parser.add_argument("--team", default="team_scout")
@@ -45,6 +66,7 @@ def main() -> None:
     off = sub.add_parser("offers", help="fetch offers for skus (live, falling back to cache)")
     off.add_argument("skus", nargs="+")
     off.add_argument("--cache-only", action="store_true")
+    sub.add_parser("prewarm", help="live-scrape offers for every servo, adapter and bracket so the demo cache is fresh")
     ask = sub.add_parser("ask", help="ask the agent")
     ask.add_argument("question")
     ask.add_argument("--live", action="store_true", help="scrape vendors now instead of replaying the cache")
@@ -69,6 +91,8 @@ def main() -> None:
     elif args.cmd == "offers":
         tools = agent.Tools(connect(), args.team, live=not args.cache_only)
         print(json.dumps(tools.get_offers(args.skus), indent=2))
+    elif args.cmd == "prewarm":
+        prewarm(args.team)
     elif args.cmd == "ask":
         events = (trueforge_runner.run if args.trueforge else agent.run)(args.question, args.team, live=args.live)
         while events is not None:

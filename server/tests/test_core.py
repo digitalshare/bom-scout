@@ -89,3 +89,26 @@ def test_trim_keeps_product_photo_and_absolute_fixes_protocol_relative():
     assert "//robotis.us/cdn/shop/files/8.png" in out and "/collections/xl" not in out
     assert offers._absolute("//robotis.us/a.png", "https://www.robotis.us/search") == "https://robotis.us/a.png"
     assert offers._absolute("/products/x", "https://www.robotis.us/search?q=1") == "https://www.robotis.us/products/x"
+
+
+def test_prewarm_fetches_every_servo_adapter_and_bracket_in_batches(monkeypatch, capsys):
+    from bomscout import __main__ as cli
+
+    calls = []
+
+    class FakeTools:
+        def __init__(self, g, team, live):
+            assert live
+            self.catalog = CATALOG
+
+        def get_offers(self, skus):
+            calls.append(skus)
+            return {"results": [{"sku": s, "vendor": "robotis_us", "source": "live", "error": None,
+                                 "offers": [{"price_usd": 1.0}]} for s in skus]}
+
+    monkeypatch.setattr(cli.agent, "Tools", FakeTools)
+    monkeypatch.setattr(cli, "connect", lambda: None)
+    cli.prewarm("team_scout")
+    wanted = [p["sku"] for p in CATALOG["parts"] if p["category"] in ("servo", "adapter", "bracket")]
+    assert [s for batch in calls for s in batch] == wanted and all(len(b) <= 4 for b in calls)
+    assert "live $1.00" in capsys.readouterr().out

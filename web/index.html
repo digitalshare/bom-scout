@@ -157,40 +157,47 @@ const COLORS = {broken: "#dc2626", dropin: "#16a34a", gaps: "#ca8a04", rejected:
 const KIND_COLOR = {Protocol: "#7c3aed", Connector: "#7c3aed", MountPattern: "#7c3aed", RosDriver: "#7c3aed",
                     Vendor: "#0d9488", Offer: "#0d9488", Team: "#475569", Build: "#475569", Joint: "#475569"};
 const KIND_SHAPE = {Protocol: "diamond", Connector: "diamond", MountPattern: "diamond", RosDriver: "diamond",
-                    Vendor: "round-tag", Offer: "round-rectangle", Team: "hexagon", Build: "hexagon", Joint: "ellipse"};
-let cy = null, graphData = null;
+                    Vendor: "tag", Offer: "rectangle", Team: "hexagon", Build: "hexagon", Joint: "ellipse"};
+let cy = null, graphData = null, graphTicket = 0;
 
 function nodeColor(n) { return COLORS[n.status] || KIND_COLOR[n.kind] || (n.owned ? COLORS.owned : "#64748b"); }
 
+function graphStyle(ink) {
+  return [
+    {selector: "node", style: {label: "data(label)", "font-size": 10, color: ink, "text-valign": "bottom", "text-margin-y": 4,
+      "background-color": "data(color)", shape: "data(shape)", width: 26, height: 26, "border-width": 3, "border-color": "data(ring)",
+      "text-wrap": "wrap", "text-max-width": 110}},
+    {selector: "node[img != 'none']", style: {"background-image": "data(img)", "background-fit": "contain", "background-color": "#fff",
+        width: 44, height: 44, "background-image-crossorigin": "null", "border-color": "data(color)"}},
+    {selector: "node[status = 'rejected']", style: {opacity: 0.45}},
+    {selector: "edge", style: {width: 1.2, "line-color": "#94a3b8", "target-arrow-color": "#94a3b8", "target-arrow-shape": "triangle",
+      "arrow-scale": 0.7, "curve-style": "bezier", "font-size": 8, color: "#f97316", "text-rotation": "autorotate"}},
+    {selector: ".faded", style: {opacity: 0.12}},
+    {selector: "edge.hl", style: {opacity: 1, "line-color": "#f97316", "target-arrow-color": "#f97316", width: 3, "z-index": 9, label: "data(type)"}},
+    {selector: "node.hl", style: {opacity: 1, "border-color": "#f97316", "border-width": 4, "z-index": 10}},
+  ];
+}
+
 async function loadGraph(joint = "elbow") {
   if (!window.cytoscape) { $("graph-detail").textContent = "Graph library failed to load."; return; }
-  graphData = await fetch(`/graph?joint=${encodeURIComponent(joint)}`).then((r) => r.json());
+  const ticket = ++graphTicket;  // the agent can trigger several redraws in a row; only the latest one draws
+  const data = await fetch(`/graph?joint=${encodeURIComponent(joint)}`).then((r) => r.json());
+  if (ticket !== graphTicket) return;
+  graphData = data;
   const ink = getComputedStyle(document.body).color;
   const elements = [
     ...graphData.nodes.map((n) => ({data: {...n, color: nodeColor(n), shape: KIND_SHAPE[n.kind] || "ellipse",
                                           img: n.image_url || "none", ring: n.owned ? COLORS.owned : (n.status === "broken" ? COLORS.broken : "transparent")}})),
     ...graphData.edges.map((e, i) => ({data: {id: "e" + i, source: e.source, target: e.target, type: e.type}})),
   ];
-  if (cy) cy.destroy();
-  cy = cytoscape({
-    container: $("cy"), elements, wheelSensitivity: 0.3,
-    style: [
-      {selector: "node", style: {label: "data(label)", "font-size": 10, color: ink, "text-valign": "bottom", "text-margin-y": 4,
-        "background-color": "data(color)", shape: "data(shape)", width: 26, height: 26, "border-width": 3, "border-color": "data(ring)",
-        "text-wrap": "wrap", "text-max-width": 110}},
-      {selector: "node[img != 'none']", style: {"background-image": "data(img)", "background-fit": "contain", "background-color": "#fff",
-        width: 44, height: 44, "background-image-crossorigin": "null", "border-color": "data(color)"}},
-      {selector: "node[status = 'rejected']", style: {opacity: 0.45}},
-      {selector: "edge", style: {width: 1.2, "line-color": "#94a3b8", "target-arrow-color": "#94a3b8", "target-arrow-shape": "triangle",
-        "arrow-scale": 0.7, "curve-style": "bezier", "font-size": 8, color: "#f97316", "text-rotation": "autorotate"}},
-      {selector: ".faded", style: {opacity: 0.12}},
-      {selector: "edge.hl", style: {opacity: 1, "line-color": "#f97316", "target-arrow-color": "#f97316", width: 3, "z-index": 9, label: "data(type)"}},
-      {selector: "node.hl", style: {opacity: 1, "border-color": "#f97316", "border-width": 4, "z-index": 10}},
-    ],
-    layout: {name: "cose", animate: false, nodeRepulsion: 40000, idealEdgeLength: 110, nodeOverlap: 20, gravity: 0.6, componentSpacing: 60, padding: 16},
-  });
-  cy.on("tap", "node", (e) => showNode(e.target));
-  cy.on("tap", (e) => { if (e.target === cy) resetGraph(); });
+  // One instance for the page: swapping elements avoids rebuilding the renderer mid-frame on rapid redraws.
+  if (!cy) {
+    cy = cytoscape({container: $("cy"), wheelSensitivity: 0.3, style: graphStyle(ink)});
+    cy.on("tap", "node", (e) => showNode(e.target));
+    cy.on("tap", (e) => { if (e.target === cy) resetGraph(); });
+  }
+  cy.batch(() => { cy.elements().remove(); cy.add(elements); });
+  cy.layout({name: "cose", animate: false, nodeRepulsion: 40000, idealEdgeLength: 110, nodeOverlap: 20, gravity: 0.6, componentSpacing: 60, padding: 16}).run();
   const lose = $("lose"), keep = lose.value;
   lose.innerHTML = '<option value="">pick a part…</option>' + graphData.nodes
     .filter((n) => n.owned || n.kind === "servo" && n.status === "broken")

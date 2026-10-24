@@ -9,11 +9,11 @@
   "budget_cap_usd": 150,
   "venue": {
     "name": "Hackathon venue",
-    "address": "EDIT ME: street address",
-    "zip": "94103",
+    "address": "Hackathon venue, San Francisco, CA 94107",
+    "zip": "94107",
     "tz": "America/Los_Angeles"
   },
-  "deadline_local": "21:00",
+  "deadline_local": "17:30",
   "owns": [
     {
       "sku": "u2d2",
