@@ -16,7 +16,7 @@ CANDIDATES = """
 MATCH (old:Part {sku: $old}), (c:Part)
 WHERE c.sku <> old.sku AND c.category = old.category
 OPTIONAL MATCH (:Team {id: $team})-[o:OWNS]->(c)
-RETURN c.sku, c.name, c.v_min, c.v_max, c.stall_torque_nm, coalesce(o.qty, 0)
+RETURN c.sku, c.name, c.v_min, c.v_max, c.stall_torque_nm, coalesce(o.qty, 0), c.image_url
 """
 
 # hop: protocols the candidate shares with the broken part
@@ -76,7 +76,7 @@ def find(g: Graph, team: str, joint: str) -> dict:
     drivers = {sku: d for sku, d in _rows(g, DRIVER, old=old_sku)}
 
     out = []
-    for sku, name, v_min, v_max, stall_nm, owned_qty in _rows(g, CANDIDATES, team=team, old=old_sku):
+    for sku, name, v_min, v_max, stall_nm, owned_qty, image_url in _rows(g, CANDIDATES, team=team, old=old_sku):
         reasons, gaps, path, hard_fail = [], [], [old_name], False
 
         protos = shared.get(sku, set())
@@ -146,7 +146,8 @@ def find(g: Graph, team: str, joint: str) -> dict:
         path.append(name)
         score = 100 - 15 * len(gaps) - (60 if hard_fail else 0) + (10 if owned_qty else 0)
         out.append(Substitute(sku=sku, name=name, score=score, ok=not hard_fail, reasons=reasons, gaps=gaps,
-                              path=path, owned_qty=owned_qty))
+                              path=path, owned_qty=owned_qty, image_url=image_url))
     out.sort(key=lambda s: -s.score)
-    return {"joint": joint, "broken": old_sku, "needed_nm": needed, "static_nm": static_nm,
+    old_image = g.query("MATCH (p:Part {sku: $sku}) RETURN p.image_url", {"sku": old_sku}).result_set[0][0]
+    return {"joint": joint, "broken": old_sku, "broken_name": old_name, "broken_image_url": old_image, "needed_nm": needed, "static_nm": static_nm,
             "candidates": [s.model_dump() for s in out]}

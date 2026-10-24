@@ -81,3 +81,11 @@ def test_skill_script_matches_server_budget():
     skill = (SAMPLES.parent / "skills" / "budget-maths" / "scripts" / "budget.py").read_text()
     server = (Path(budget.__file__)).read_text()
     assert server in skill
+
+
+def test_trim_keeps_product_photo_and_absolute_fixes_protocol_relative():
+    page = "title\nx\ny\n* [XL Series](/collections/xl)\n![DYNAMIXEL XL430-W250-T](//robotis.us/cdn/shop/files/8.png)\n### [DYNAMIXEL XL430-W250-T](/products/x)\nRegular price $27.50\n"
+    out = offers.trim_markdown(page, "XL430-W250-T")
+    assert "//robotis.us/cdn/shop/files/8.png" in out and "/collections/xl" not in out
+    assert offers._absolute("//robotis.us/a.png", "https://www.robotis.us/search") == "https://robotis.us/a.png"
+    assert offers._absolute("/products/x", "https://www.robotis.us/search?q=1") == "https://www.robotis.us/products/x"

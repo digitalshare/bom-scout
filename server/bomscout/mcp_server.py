@@ -10,7 +10,7 @@ import os
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from . import budget
+from . import budget, graph_view
 from .agent import Tools
 from .graph import connect
 
@@ -87,6 +87,19 @@ def get_budget_inputs(joint: str, sku: str) -> dict:
         "supply": {k: t.parts[supply_sku][k] for k in ("sku", "v_out", "max_current_a")},
         "server_answer": {"joint_torques": budget.joint_torques(build.model_dump()), **t.check_budget(joint, sku)},
     }
+
+
+@server.tool(annotations=READ)
+def what_if_lost(sku: str) -> dict:
+    """Blast radius: which joints stop working if the team loses this part (joints that use it, every joint on the
+    bus when it is the only owned USB adapter for the bus protocol, every joint when it is the power supply)."""
+    return graph_view.what_if_lost(connect(), TEAM, sku)
+
+
+@server.tool(annotations=READ)
+def owned_spares() -> dict:
+    """For every joint, parts already in the team's bin that can replace its actuator, with the gaps to close."""
+    return graph_view.owned_spares(connect(), TEAM)
 
 
 @server.tool(annotations=SPEND)

@@ -19,7 +19,7 @@ from falkordb import Graph
 from openai import OpenAI
 
 from . import budget, offers, substitutes
-from .graph import connect
+from .graph import connect, upsert_offers
 
 DEFAULT_MODEL = os.environ.get("BOMSCOUT_MODEL", "gpt-5.5")
 CATALOG = Path(os.environ.get("BOMSCOUT_CATALOG", Path(__file__).resolve().parents[2] / "samples" / "catalog.json"))
@@ -91,6 +91,7 @@ class Tools:
     def get_offers(self, skus: list[str]) -> dict:
         parts = [{"sku": s, "name": self.parts[s]["name"], "query": self.parts[s]["query"]} for s in skus if s in self.parts]
         res = asyncio.run(offers.get_offers(parts, self.catalog["vendors"], self.team_props["venue_zip"], self.team_props["tz"], live=self.live))
+        upsert_offers(self.g, res)
         return {"results": res, "unknown_skus": [s for s in skus if s not in self.parts]}
 
     def check_budget(self, joint: str, sku: str) -> dict:

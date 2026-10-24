@@ -31,6 +31,18 @@ uv run pytest
 ```
 Env: `OPENAI_API_KEY`, `BRIGHTDATA_API_TOKEN`, `BRIGHTDATA_ZONE` (default `mcp_unlocker`), `BOMSCOUT_MODEL` (default `gpt-5.5`).
 
+## What the graph shows
+- **Web UI graph panel** (`GET /graph?joint=elbow`, Cytoscape). It shows the build, the broken part, every candidate and the protocol, connector, mount and driver nodes that link them. Parts you own get a blue ring, rejected candidates are faded, and live offers hang off their vendor. Click a candidate to highlight its path. "What if we lose…" (`GET /what-if/{sku}`) lights up the failure chain. For example, the only U2D2 → Protocol 2.0 → every XL430 joint.
+- **Part photos** are hotlinked from the vendor listings (robotis.us, Digi-Key, Amazon) and kept on `Part.image_url`. No image files are in this repo.
+- **The pitch path in one query** (FalkorDB browser on :3000):
+  ```cypher
+  MATCH (b:Part {sku:"xl430-w250-t"})-[:SPEAKS]->(pr:Protocol)<-[:SPEAKS]-(s:Part)-[:MOUNTS]->(m)<-[:FITS]-(br:Part)<-[:OWNS]-(:Team),
+        (o:Offer)-[:FOR]->(s), (o)-[:FROM]->(v:Vendor)
+  WHERE s <> b AND pr.id = "dxl_p2"
+  RETURN s.sku, m.id, br.sku, v.name, o.price_usd, o.deliver_by
+  ```
+- **Agent tools**: `what_if_lost(sku)` and `owned_spares()`, alongside the substitute search.
+
 ## Vendors (as tested 2026-10-24)
 | Vendor | How | Status |
 |---|---|---|

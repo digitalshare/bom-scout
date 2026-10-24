@@ -13,7 +13,7 @@ from .inputs import load_build_dir
 from .models import Build
 
 GRAPH_NAME = "bomscout"
-SPEC_FIELDS = ("v_min", "v_max", "stall_torque_nm", "stall_current_a", "mass_g", "v_out", "max_current_a")
+SPEC_FIELDS = ("v_min", "v_max", "stall_torque_nm", "stall_current_a", "mass_g", "v_out", "max_current_a", "image_url")
 
 
 def connect(graph_name: str = GRAPH_NAME) -> Graph:
@@ -110,3 +110,27 @@ def load(catalog_path: Path, build_dir: Path, graph_name: str = GRAPH_NAME) -> G
     build, team = load_build_dir(build_dir)
     load_team(g, build, team)
     return g
+
+
+def upsert_offers(g: Graph, results: list[dict]) -> None:
+    """Writes each vendor offer as (:Offer)-[:FOR]->(:Part), -[:FROM]->(:Vendor), and keeps the first product photo
+    on the Part so later cache-only runs and the graph view still have it. Offers that vanish on a rescrape are removed."""
+    for r in results:
+        if r.get("error") and not r["offers"]:
+            continue  # a failed fetch with no cache says nothing about what the vendor has
+        g.query("MATCH (o:Offer {vendor: $vendor, sku: $sku}) DETACH DELETE o", {"vendor": r["vendor"], "sku": r["sku"]})
+        for i, o in enumerate(r["offers"]):
+            g.query(
+                """MATCH (p:Part {sku: $sku}), (v:Vendor {id: $vendor})
+                   CREATE (o:Offer {id: $id, vendor: $vendor, sku: $sku, title: $title, price_usd: $price,
+                                    in_stock: $in_stock, stock_qty: $qty, lead_time: $lead, deliver_by: $deliver_by,
+                                    arrives_today: $today, url: $url, source: $source, fetched_at: $fetched})
+                   CREATE (o)-[:FOR]->(p), (o)-[:FROM]->(v)""",
+                {"sku": o["sku"], "vendor": o["vendor"], "id": f"{o['vendor']}/{o['sku']}/{i}", "title": o["title"],
+                 "price": o["price_usd"], "in_stock": o["in_stock"], "qty": o["stock_qty"], "lead": o["lead_time"],
+                 "deliver_by": o["deliver_by"], "today": o["arrives_today"], "url": o["url"], "source": o["source"],
+                 "fetched": o["fetched_at"]},
+            )
+            if o.get("image_url"):
+                g.query("MATCH (p:Part {sku: $sku}) WHERE p.image_url IS NULL SET p.image_url = $url",
+                        {"sku": o["sku"], "url": o["image_url"]})

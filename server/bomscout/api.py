@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import agent, trueforge_runner
+from . import agent, graph_view, trueforge_runner
 from .graph import connect
 
 WEB = Path(__file__).resolve().parents[2] / "web"
@@ -54,6 +54,21 @@ def index():
 def team():
     tools = agent.Tools(connect(), TEAM, live=False)
     return {"runtime": RUNTIME, "team": tools.team_props, **tools.get_build(), **tools.team_inventory()}
+
+
+@app.get("/graph")
+def graph(joint: str = "elbow"):
+    return graph_view.subgraph(connect(), TEAM, joint)
+
+
+@app.get("/what-if/{sku}")
+def what_if(sku: str):
+    return graph_view.what_if_lost(connect(), TEAM, sku)
+
+
+@app.get("/spares")
+def spares():
+    return graph_view.owned_spares(connect(), TEAM)
 
 
 @app.post("/ask")

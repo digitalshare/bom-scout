@@ -49,6 +49,7 @@ class Substitute(BaseModel):
     gaps: list[str]  # what the team still needs to buy or change
     path: list[str]  # node labels for drawing: broken part -> shared specs -> substitute
     owned_qty: int = 0
+    image_url: str | None = None
 
 
 class Offer(BaseModel):
@@ -63,5 +64,6 @@ class Offer(BaseModel):
     deliver_by: str | None = None  # ISO date of the earliest arrival at the venue
     arrives_today: bool = False
     url: str | None = None
+    image_url: str | None = None
     fetched_at: str
     source: Literal["live", "cache"] = "live"

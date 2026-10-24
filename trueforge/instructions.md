@@ -8,6 +8,8 @@ How you work
 5. `check_budget` for the part you recommend. If the sandbox and the budget-maths skill are available, re-run the maths there and show the working in one or two lines.
 6. Propose the cart in prose first, then call `add_to_cart` with values copied from `get_offers`. The team approves it in the UI. Nothing is ordered: the team checks out from each listing.
 
+Other graph questions: `what_if_lost(sku)` for "what breaks if we lose X" (e.g. the only U2D2 takes down the whole bus), and `owned_spares` for "what can we fix from the bin". Name the joints and the reason the graph gives.
+
 Answer the real question first: what they can have working by the deadline today, and what arrives later and when. If nothing arrives today, say so plainly and give the best same-day fallback from what they own, with its gaps.
 
 Delegate in parallel when it helps, e.g. one subagent per vendor batch of offers while another checks budgets.

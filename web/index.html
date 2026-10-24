@@ -58,7 +58,16 @@
   td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
   #approval .total { font-size: 20px; font-weight: 700; }
   .hidden { display: none; }
+  .thumb { width: 56px; height: 56px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 6px; flex: none; }
+  .cand-title { display: flex; gap: 10px; align-items: center; }
+  .offer .thumb { float: right; width: 48px; height: 48px; margin-left: 6px; }
+  #cy { height: 560px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin: 8px 0; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  #graph-detail { font-size: 13px; min-height: 1.5em; margin-top: 8px; }
+  select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
 </head>
 <body>
 <header>
@@ -99,6 +108,22 @@
   </div>
   <div>
     <section>
+      <h2>Compatibility graph (FalkorDB)</h2>
+      <div id="cy"></div>
+      <div class="legend">
+        <span><i style="background:#dc2626"></i>broken</span><span><i style="background:#16a34a"></i>drop-in</span>
+        <span><i style="background:#ca8a04"></i>fits with gaps</span><span><i style="background:#9ca3af"></i>rejected</span>
+        <span><i style="background:#2563eb"></i>you own it</span><span><i style="background:#7c3aed"></i>spec (protocol, connector, mount, driver)</span>
+        <span><i style="background:#0d9488"></i>offer / vendor</span>
+      </div>
+      <div class="row">
+        <label for="lose">What if we lose</label>
+        <select id="lose"><option value="">pick a part…</option></select>
+        <button class="secondary" type="button" id="reset-graph">Reset view</button>
+      </div>
+      <div id="graph-detail" class="muted">Click a part to see its path from the broken servo.</div>
+    </section>
+    <section>
       <h2>Substitution paths (FalkorDB)</h2>
       <div id="subs" class="muted">Ask a question to search the compatibility graph.</div>
     </section>
@@ -123,6 +148,103 @@ fetch("/team").then((r) => r.json()).then((t) => {
   $("teamline").textContent = `${t.runtime === "trueforge" ? "agent on TrueForge" : "local agent"} · ${team.name} · venue ${team.venue_zip} · needs parts by ${team.deadline_local} · budget $${team.budget_cap_usd} · broken: ${broken || "none"}`;
 });
 
+// Product photos are hotlinked from the vendor's CDN; a broken link just disappears.
+const thumb = (url) => url ? `<img class="thumb" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
+
+// ---------- graph panel ----------
+const COLORS = {broken: "#dc2626", dropin: "#16a34a", gaps: "#ca8a04", rejected: "#9ca3af", owned: "#2563eb",
+                today: "#16a34a", instock: "#0d9488", later: "#9ca3af"};
+const KIND_COLOR = {Protocol: "#7c3aed", Connector: "#7c3aed", MountPattern: "#7c3aed", RosDriver: "#7c3aed",
+                    Vendor: "#0d9488", Offer: "#0d9488", Team: "#475569", Build: "#475569", Joint: "#475569"};
+const KIND_SHAPE = {Protocol: "diamond", Connector: "diamond", MountPattern: "diamond", RosDriver: "diamond",
+                    Vendor: "round-tag", Offer: "round-rectangle", Team: "hexagon", Build: "hexagon", Joint: "ellipse"};
+let cy = null, graphData = null;
+
+function nodeColor(n) { return COLORS[n.status] || KIND_COLOR[n.kind] || (n.owned ? COLORS.owned : "#64748b"); }
+
+async function loadGraph(joint = "elbow") {
+  if (!window.cytoscape) { $("graph-detail").textContent = "Graph library failed to load."; return; }
+  graphData = await fetch(`/graph?joint=${encodeURIComponent(joint)}`).then((r) => r.json());
+  const ink = getComputedStyle(document.body).color;
+  const elements = [
+    ...graphData.nodes.map((n) => ({data: {...n, color: nodeColor(n), shape: KIND_SHAPE[n.kind] || "ellipse",
+                                          img: n.image_url || "none", ring: n.owned ? COLORS.owned : (n.status === "broken" ? COLORS.broken : "transparent")}})),
+    ...graphData.edges.map((e, i) => ({data: {id: "e" + i, source: e.source, target: e.target, type: e.type}})),
+  ];
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: $("cy"), elements, wheelSensitivity: 0.3,
+    style: [
+      {selector: "node", style: {label: "data(label)", "font-size": 10, color: ink, "text-valign": "bottom", "text-margin-y": 4,
+        "background-color": "data(color)", shape: "data(shape)", width: 26, height: 26, "border-width": 3, "border-color": "data(ring)",
+        "text-wrap": "wrap", "text-max-width": 110}},
+      {selector: "node[img != 'none']", style: {"background-image": "data(img)", "background-fit": "contain", "background-color": "#fff",
+        width: 44, height: 44, "background-image-crossorigin": "null", "border-color": "data(color)"}},
+      {selector: "node[status = 'rejected']", style: {opacity: 0.45}},
+      {selector: "edge", style: {width: 1.2, "line-color": "#94a3b8", "target-arrow-color": "#94a3b8", "target-arrow-shape": "triangle",
+        "arrow-scale": 0.7, "curve-style": "bezier", "font-size": 8, color: "#f97316", "text-rotation": "autorotate"}},
+      {selector: ".faded", style: {opacity: 0.12}},
+      {selector: "edge.hl", style: {opacity: 1, "line-color": "#f97316", "target-arrow-color": "#f97316", width: 3, "z-index": 9, label: "data(type)"}},
+      {selector: "node.hl", style: {opacity: 1, "border-color": "#f97316", "border-width": 4, "z-index": 10}},
+    ],
+    layout: {name: "cose", animate: false, nodeRepulsion: 40000, idealEdgeLength: 110, nodeOverlap: 20, gravity: 0.6, componentSpacing: 60, padding: 16},
+  });
+  cy.on("tap", "node", (e) => showNode(e.target));
+  cy.on("tap", (e) => { if (e.target === cy) resetGraph(); });
+  const lose = $("lose"), keep = lose.value;
+  lose.innerHTML = '<option value="">pick a part…</option>' + graphData.nodes
+    .filter((n) => n.owned || n.kind === "servo" && n.status === "broken")
+    .map((n) => `<option value="${esc(n.id.split(":")[1])}">${esc(n.label)}</option>`).join("");
+  lose.value = keep;
+}
+
+function resetGraph() { if (cy) cy.elements().removeClass("faded hl"); $("graph-detail").textContent = "Click a part to see its path from the broken servo."; }
+
+// Highlight the broken part -> shared spec nodes -> candidate -> its offers, plus owned parts on that path.
+function showNode(node) {
+  const d = node.data();
+  cy.elements().addClass("faded").removeClass("hl");
+  let hood = node.closedNeighborhood();
+  if (d.detail && d.detail.path) {
+    const broken = cy.getElementById(graphData.broken);
+    const shared = broken.outgoers("node").intersection(node.outgoers("node"));
+    hood = hood.union(broken).union(shared).union(broken.edgesTo(shared)).union(node.edgesTo(shared));
+    // owned adapters, brackets and cables that bridge or fit the shared specs (not other owned servos)
+    const helpers = shared.incomers("node").filter((n) => n.data("owned") && n.data("kind") !== "servo");
+    hood = hood.union(helpers).union(helpers.edgesTo(shared));
+    hood = hood.union(node.incomers("node[kind = 'Offer']").outgoers());
+  }
+  hood.removeClass("faded").addClass("hl");
+  const det = d.detail || {};
+  $("graph-detail").innerHTML = `<b>${esc(d.label)}</b> <span class="muted">${esc(d.kind)}${d.owned ? ` · you own ${d.owned}` : ""}</span>` +
+    (det.path ? `<div class="muted">${esc(det.path.join(" → "))}</div>` : "") +
+    (det.reasons ? `<ul class="reasons">${det.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${det.gaps.map((x) => `<li class="gap">${esc(x)}</li>`).join("")}</ul>` : "") +
+    (det.vendor ? `<div>${esc(det.vendor)} · ${esc(det.lead_time || "")} · ${esc(det.source)} ${det.url ? `<a href="${esc(det.url)}" target="_blank" rel="noopener">listing ↗</a>` : ""}</div>` : "");
+}
+
+$("reset-graph").onclick = resetGraph;
+$("lose").onchange = async (e) => {
+  const sku = e.target.value;
+  if (!sku) return resetGraph();
+  const r = await fetch(`/what-if/${encodeURIComponent(sku)}`).then((r) => r.json());
+  cy.elements().addClass("faded").removeClass("hl");
+  const lost = cy.getElementById("Part:" + sku);
+  // lost part -> protocols it bridges <- parts on the joints -> joints, so the chain of failure is visible
+  const protos = lost.outgoers("node[kind = 'Protocol']");
+  let hit = lost.closedNeighborhood("node[kind = 'Team']").union(lost).union(lost.edgesTo(protos)).union(protos);
+  for (const j of r.joints) {
+    const jn = cy.nodes(`[kind = 'Joint'][label = "${j.joint}"]`);
+    const used = jn.outgoers("node");
+    hit = hit.union(jn).union(jn.edgesTo(used)).union(used).union(used.edgesTo(protos));
+  }
+  hit.union(lost.connectedEdges()).removeClass("faded").addClass("hl");
+  $("graph-detail").innerHTML = r.joints.length
+    ? `Losing <b>${esc(sku)}</b> (you own ${r.owned_qty}) stops ${r.joints.length} joint${r.joints.length > 1 ? "s" : ""}: ` +
+      r.joints.map((j) => `<b>${esc(j.joint)}</b> <span class="muted">(${esc(j.why)})</span>`).join(", ")
+    : `Losing <b>${esc(sku)}</b> stops no joint in this build.`;
+};
+loadGraph();
+
 function step(html) {
   const li = document.createElement("li");
   li.innerHTML = html;
@@ -134,7 +256,7 @@ function renderSubs(r) {
   $("subs").className = "";
   $("subs").innerHTML = `<p class="muted">${esc(r.broken)} at the <b>${esc(r.joint)}</b> needs ${r.needed_nm} N·m (static ${r.static_nm} N·m × safety factor)</p>` +
     top.map((c) => `<div class="cand">
-      <div class="cand-head"><span>${esc(c.name)}</span>
+      <div class="cand-head"><span class="cand-title">${thumb(c.image_url)}${esc(c.name)}</span>
         <span class="badge ${c.ok ? (c.gaps.length ? "warn" : "ok") : "bad"}">${c.ok ? (c.gaps.length ? `fits, ${c.gaps.length} gap${c.gaps.length > 1 ? "s" : ""}` : "drop-in") : "rejected"}${c.owned_qty ? ` · you own ${c.owned_qty}` : ""}</span></div>
       <div class="path">${c.path.map((p) => `<span class="chip">${esc(p)}</span>`).join('<span class="arrow">→</span>')}</div>
       <ul class="reasons">${c.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${c.gaps.map((x) => `<li class="gap">${esc(x)}</li>`).join("")}</ul>
@@ -147,6 +269,7 @@ function renderOffers(res) {
     if (!r.offers.length) { misses.push(`${r.sku} @ ${r.vendor}${r.error ? " (error)" : ""}`); continue; }
     for (const o of r.offers) {
       cards.push(`<div class="offer">
+        ${thumb(o.image_url)}
         <div class="row" style="justify-content:space-between"><b>${esc(o.vendor)}</b><span class="badge">${esc(o.source)}</span></div>
         <div>${esc(o.sku)}</div>
         <div class="price">${o.price_usd != null ? "$" + o.price_usd.toFixed(2) : "price n/a"}</div>
@@ -196,8 +319,8 @@ function handle(ev) {
   else if (ev.type === "step") step(esc(ev.text));
   else if (ev.type === "tool_result") {
     if (ev.result && ev.result.error) step(`<span style="color:var(--bad)">✖ ${esc(ev.result.error)}</span>`);
-    else if (ev.name === "find_substitutes") renderSubs(ev.result);
-    else if (ev.name === "get_offers") renderOffers(ev.result);
+    else if (ev.name === "find_substitutes") { renderSubs(ev.result); loadGraph(ev.result.joint); }
+    else if (ev.name === "get_offers") { renderOffers(ev.result); loadGraph(); }
     else if (ev.name === "check_budget") renderBudget(ev.result);
     else if (ev.name === "add_to_cart") renderCart(ev.result.items || []);
   }

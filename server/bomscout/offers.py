@@ -99,7 +99,8 @@ async def unlocker_markdown(client: httpx.AsyncClient, url: str) -> str:
     return resp.text
 
 
-NAV_LINE = re.compile(r"^\s*(?:[*-]\s+)?!?\[.*\]\([^)]*\)\s*$")
+# a line that is only a link (menus, filters); product photos start with "![" and are kept
+NAV_LINE = re.compile(r"^\s*(?:[*-]\s+)?\[.*\]\([^)]*\)\s*$")
 
 
 def trim_markdown(text: str, query: str, before: int = 15, after: int = 130, cap: int = 15_000) -> str:
@@ -122,6 +123,7 @@ class _Listing(BaseModel):
     lead_time: str | None
     ship_days: int | None
     url: str | None
+    image_url: str | None
 
 
 class _Listings(BaseModel):
@@ -138,6 +140,7 @@ PARSE_INSTRUCTIONS = """You read a vendor search or product page (markdown) and 
   On a store's own search results, a listing with no lead-time, backorder or sold-out note is in stock: in_stock = true,
   ship_days = 0, lead_time = "no lead-time note on listing". Otherwise unknown = null.
 - url: absolute URL of the listing if the page has one.
+- image_url: URL of the listing's own product photo if the page shows one (not logos, icons or banners). Else null.
 Never invent a listing or a number that is not on the page."""
 
 
@@ -167,7 +170,8 @@ async def fetch_unlocker_vendor(client, vendor_id: str, vendor: dict, sku: str, 
         offers.append(Offer(
             vendor=vendor_id, sku=sku, title=l.title, price_usd=l.price_usd, in_stock=l.in_stock, stock_qty=l.stock_qty,
             lead_time=l.lead_time, ship_days=l.ship_days, deliver_by=eta.isoformat() if eta else None,
-            arrives_today=eta == now.date() if eta else False, url=_absolute(l.url, url), fetched_at=fetched,
+            arrives_today=eta == now.date() if eta else False, url=_absolute(l.url, url),
+            image_url=_absolute(l.image_url, url), fetched_at=fetched,
         ))
     return {"url": url, "page": trimmed}, offers
 
@@ -175,6 +179,8 @@ async def fetch_unlocker_vendor(client, vendor_id: str, vendor: dict, sku: str, 
 def _absolute(link: str | None, base: str) -> str | None:
     if not link or link.startswith("http"):
         return link
+    if link.startswith("//"):
+        return "https:" + link
     root = re.match(r"https?://[^/]+", base).group(0)
     return root + ("" if link.startswith("/") else "/") + link
 
@@ -213,9 +219,9 @@ async def fetch_amazon(client, sku: str, keyword: str, query: str, zipcode: str,
             vendor="amazon", sku=sku, title=r.get("title") or "", price_usd=r.get("final_price"),
             in_stock=r.get("is_available"), stock_qty=r.get("max_quantity_available"), lead_time=r.get("availability"),
             deliver_by=eta.isoformat() if eta else None, arrives_today=eta == now.date() if eta else False,
-            url=r.get("url"), fetched_at=now.isoformat(),
+            url=r.get("url"), image_url=r.get("image_url"), fetched_at=now.isoformat(),
         ))
-    slim = [{k: r.get(k) for k in ("title", "asin", "final_price", "availability", "delivery", "url", "zipcode")} for r in records]
+    slim = [{k: r.get(k) for k in ("title", "asin", "final_price", "availability", "delivery", "url", "image_url", "zipcode")} for r in records]
     return {"zipcode": zipcode, "records": slim}, offers
 
 
