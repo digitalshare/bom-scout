@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOM Scout</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1f21; --muted: #6b6f75; --line: #e3e1da;
+    --accent: #c2410c; --ok: #15803d; --bad: #b91c1c; --warn: #a16207; --chip: #f1efe8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141518; --panel: #1c1e22; --ink: #ecebe6; --muted: #9a9ea6; --line: #2c2f35;
+      --accent: #fb923c; --ok: #4ade80; --bad: #f87171; --warn: #facc15; --chip: #26292e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; padding: 16px 24px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  header h1 span { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 14px 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+  form { display: flex; flex-direction: column; gap: 10px; }
+  textarea { width: 100%; min-height: 76px; resize: vertical; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; background: var(--accent); color: #fff; }
+  button.secondary { background: var(--chip); color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  label { color: var(--muted); font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  #steps { list-style: none; margin: 0; padding: 0; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #steps li { padding: 2px 0; color: var(--muted); overflow-wrap: anywhere; }
+  #steps li b { color: var(--ink); font-weight: 600; }
+  #answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #answer:empty::before { content: "The agent's answer will appear here."; color: var(--muted); }
+  .cand { border-top: 1px solid var(--line); padding: 12px 0; }
+  .cand:first-of-type { border-top: 0; padding-top: 0; }
+  .cand-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .badge { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--chip); white-space: nowrap; }
+  .badge.ok { color: var(--ok); } .badge.bad { color: var(--bad); } .badge.warn { color: var(--warn); }
+  .path { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0; }
+  .chip { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; font: 12px ui-monospace, Menlo, monospace; }
+  .arrow { color: var(--muted); font-size: 12px; }
+  ul.reasons { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  ul.reasons li.gap { color: var(--warn); }
+  .offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+  .offer { border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; }
+  .offer .price { font-size: 18px; font-weight: 700; }
+  .offer .eta.today { color: var(--ok); font-weight: 700; }
+  .offer a { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  #approval .total { font-size: 20px; font-weight: 700; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BOM <span>Scout</span></h1>
+  <div class="meta" id="teamline">Loading team…</div>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Ask</h2>
+      <form id="ask">
+        <textarea id="q">It's 2pm at the hackathon and the elbow servo just burned out. What can I get delivered to the venue today?</textarea>
+        <div class="row">
+          <button id="go" type="submit">Find parts</button>
+          <label><input type="checkbox" id="live"> Scrape vendors live (slower)</label>
+        </div>
+      </form>
+    </section>
+    <section>
+      <h2>Answer</h2>
+      <div id="answer"></div>
+    </section>
+    <section id="approval" class="hidden">
+      <h2>Waiting for your approval</h2>
+      <p id="approval-summary"></p>
+      <table id="approval-items"></table>
+      <p class="row"><span class="total" id="approval-total"></span><span id="approval-budget" class="badge"></span></p>
+      <div class="row">
+        <button id="approve">Approve cart</button>
+        <button id="reject" class="secondary">Reject</button>
+      </div>
+      <p class="muted" id="approval-result">Nothing is ordered until you approve.</p>
+    </section>
+    <section>
+      <h2>Agent steps</h2>
+      <ul id="steps"><li>Idle.</li></ul>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Substitution paths (FalkorDB)</h2>
+      <div id="subs" class="muted">Ask a question to search the compatibility graph.</div>
+    </section>
+    <section>
+      <h2>Live offers (Bright Data)</h2>
+      <div id="offers" class="muted">No offers fetched yet.</div>
+    </section>
+    <section>
+      <h2>Budget check</h2>
+      <div id="budget" class="muted">No budget check yet.</div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+let team = null, approvalId = null;
+
+fetch("/team").then((r) => r.json()).then((t) => {
+  team = t.team;
+  const broken = t.joints.filter((j) => j.status === "broken").map((j) => `${j.joint} (${j.sku})`).join(", ");
+  $("teamline").textContent = `${t.runtime === "trueforge" ? "agent on TrueForge" : "local agent"} · ${team.name} · venue ${team.venue_zip} · needs parts by ${team.deadline_local} · budget $${team.budget_cap_usd} · broken: ${broken || "none"}`;
+});
+
+function step(html) {
+  const li = document.createElement("li");
+  li.innerHTML = html;
+  $("steps").appendChild(li);
+}
+
+function renderSubs(r) {
+  const top = r.candidates.slice(0, 5);
+  $("subs").className = "";
+  $("subs").innerHTML = `<p class="muted">${esc(r.broken)} at the <b>${esc(r.joint)}</b> needs ${r.needed_nm} N·m (static ${r.static_nm} N·m × safety factor)</p>` +
+    top.map((c) => `<div class="cand">
+      <div class="cand-head"><span>${esc(c.name)}</span>
+        <span class="badge ${c.ok ? (c.gaps.length ? "warn" : "ok") : "bad"}">${c.ok ? (c.gaps.length ? `fits, ${c.gaps.length} gap${c.gaps.length > 1 ? "s" : ""}` : "drop-in") : "rejected"}${c.owned_qty ? ` · you own ${c.owned_qty}` : ""}</span></div>
+      <div class="path">${c.path.map((p) => `<span class="chip">${esc(p)}</span>`).join('<span class="arrow">→</span>')}</div>
+      <ul class="reasons">${c.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${c.gaps.map((x) => `<li class="gap">${esc(x)}</li>`).join("")}</ul>
+    </div>`).join("");
+}
+
+function renderOffers(res) {
+  const cards = [], misses = [];
+  for (const r of res.results) {
+    if (!r.offers.length) { misses.push(`${r.sku} @ ${r.vendor}${r.error ? " (error)" : ""}`); continue; }
+    for (const o of r.offers) {
+      cards.push(`<div class="offer">
+        <div class="row" style="justify-content:space-between"><b>${esc(o.vendor)}</b><span class="badge">${esc(o.source)}</span></div>
+        <div>${esc(o.sku)}</div>
+        <div class="price">${o.price_usd != null ? "$" + o.price_usd.toFixed(2) : "price n/a"}</div>
+        <div>${o.in_stock === true ? "In stock" : o.in_stock === false ? "Not in stock" : "Stock unknown"}${o.stock_qty != null ? ` · ${o.stock_qty} available` : ""}</div>
+        ${o.lead_time ? `<div class="muted">${esc(o.lead_time)}</div>` : ""}
+        <div class="eta ${o.arrives_today ? "today" : ""}">${o.arrives_today ? "Arrives today" : o.deliver_by ? "Arrives " + esc(o.deliver_by) : "No delivery estimate"}</div>
+        ${o.url ? `<a href="${esc(o.url)}" target="_blank" rel="noopener">listing ↗</a>` : ""}
+      </div>`);
+    }
+  }
+  $("offers").className = "";
+  $("offers").innerHTML = (cards.length ? `<div class="offers">${cards.join("")}</div>` : "<p class='muted'>No matching listings.</p>") +
+    (misses.length ? `<p class="muted">No listing: ${esc(misses.join(", "))}</p>` : "");
+}
+
+function renderBudget(r) {
+  if (r.error) return;
+  const t = r.torque, p = r.power;
+  $("budget").className = "";
+  $("budget").innerHTML = `<table>
+    <tr><td>${esc(t.sku)} at the ${esc(t.joint)}: torque needed (${t.safety_factor}×)</td><td>${t.needed_nm} N·m</td></tr>
+    <tr><td>Stall torque</td><td><span class="badge ${t.ok ? "ok" : "bad"}">${t.stall_torque_nm} N·m · ${t.margin}× static</span></td></tr>
+    <tr><td>All actuators stalled, on ${esc(p.supply)}</td><td><span class="badge ${p.current_ok ? "ok" : "warn"}">${p.all_stall_current_a} A / ${p.max_current_a} A</span></td></tr>
+    <tr><td>Supply voltage ${p.v_out} V within every actuator's range</td><td><span class="badge ${p.voltage_ok ? "ok" : "bad"}">${p.voltage_ok ? "yes" : esc(p.voltage_out_of_range.join(", "))}</span></td></tr>
+  </table>`;
+}
+
+function renderApproval(a) {
+  approvalId = a.approval_id;
+  $("approval").classList.remove("hidden");
+  $("approval-summary").textContent = a.summary;
+  $("approval-items").innerHTML = a.items.map((i) => `<tr><td>${i.qty} × ${esc(i.sku)} from ${esc(i.vendor)}${i.deliver_by ? ", arrives " + esc(i.deliver_by) : ""}</td><td>${i.price_usd != null ? "$" + (i.price_usd * i.qty).toFixed(2) : "n/a"}</td></tr>`).join("") || "<tr><td>Nothing to buy</td><td></td></tr>";
+  $("approval-total").textContent = "$" + a.total_usd.toFixed(2);
+  $("approval-budget").textContent = a.over_budget ? "over budget cap" : "within budget cap";
+  $("approval-budget").className = "badge " + (a.over_budget ? "bad" : "ok");
+  $("approve").disabled = $("reject").disabled = false;
+  $("approval-result").textContent = "Nothing is ordered until you approve.";
+}
+
+function renderCart(items) {
+  $("approval-result").innerHTML = "Cart saved. Check out from each listing: " +
+    items.map((i) => i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.sku)} @ ${esc(i.vendor)}</a>` : esc(i.sku)).join(", ");
+}
+
+function handle(ev) {
+  if (ev.type === "tool_call") step(`→ <b>${esc(ev.name)}</b>(${esc(JSON.stringify(ev.args))})`);
+  else if (ev.type === "step") step(esc(ev.text));
+  else if (ev.type === "tool_result") {
+    if (ev.result && ev.result.error) step(`<span style="color:var(--bad)">✖ ${esc(ev.result.error)}</span>`);
+    else if (ev.name === "find_substitutes") renderSubs(ev.result);
+    else if (ev.name === "get_offers") renderOffers(ev.result);
+    else if (ev.name === "check_budget") renderBudget(ev.result);
+    else if (ev.name === "add_to_cart") renderCart(ev.result.items || []);
+  }
+  else if (ev.type === "approval") renderApproval(ev);
+  else if (ev.type === "decision") { step(`cart ${esc(ev.status)}`); $("approval-result").textContent = `Cart ${ev.status}.`; }
+  else if (ev.type === "answer") $("answer").textContent = ev.text.replace(/\*\*/g, "");
+  else if (ev.type === "error") step(`<span style="color:var(--bad)">✖ ${esc(ev.text)}</span>`);
+  else if (ev.type === "done") step("done");
+}
+
+async function consume(resp) {
+  const reader = resp.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, {stream: true});
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const line = buf.slice(0, i); buf = buf.slice(i + 2);
+      if (line.startsWith("data: ")) handle(JSON.parse(line.slice(6)));
+    }
+  }
+}
+
+async function decide(approved) {
+  $("approve").disabled = $("reject").disabled = true;
+  $("approval-result").textContent = approved ? "Approved, the agent is adding it to the cart…" : "Rejecting…";
+  await consume(await fetch(`/approve/${approvalId}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({approved})}));
+}
+$("approve").onclick = () => decide(true);
+$("reject").onclick = () => decide(false);
+
+$("ask").onsubmit = async (e) => {
+  e.preventDefault();
+  $("go").disabled = true;
+  $("steps").innerHTML = "";
+  $("answer").textContent = "";
+  $("approval").classList.add("hidden");
+  step(`<b>question</b> ${esc($("q").value)}`);
+  await consume(await fetch("/ask", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({question: $("q").value, live: $("live").checked})}));
+  $("go").disabled = false;
+};
+</script>
+</body>
+</html>

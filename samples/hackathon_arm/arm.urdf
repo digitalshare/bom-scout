@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<!-- 4-DOF desk arm built from XL430s. Zero pose is stretched out along +x, the worst case for gravity load.
+     Each link's mass includes the servo bolted to its far end. -->
+<robot name="scout_arm">
+  <link name="base_link">
+    <inertial><origin xyz="0 0 0.02"/><mass value="0.30"/></inertial>
+  </link>
+  <link name="turret">
+    <inertial><origin xyz="0 0 0.025"/><mass value="0.08"/></inertial>
+  </link>
+  <link name="upper_arm">
+    <inertial><origin xyz="0.10 0 0"/><mass value="0.110"/></inertial>
+  </link>
+  <link name="forearm">
+    <inertial><origin xyz="0.08 0 0"/><mass value="0.095"/></inertial>
+  </link>
+  <link name="wrist">
+    <inertial><origin xyz="0.03 0 0"/><mass value="0.030"/></inertial>
+  </link>
+  <link name="gripper">
+    <inertial><origin xyz="0.03 0 0"/><mass value="0.060"/></inertial>
+  </link>
+
+  <joint name="base_yaw" type="revolute">
+    <parent link="base_link"/><child link="turret"/>
+    <origin xyz="0 0 0.04"/><axis xyz="0 0 1"/>
+    <limit lower="-2.6" upper="2.6" effort="1.5" velocity="5.4"/>
+  </joint>
+  <joint name="shoulder" type="revolute">
+    <parent link="turret"/><child link="upper_arm"/>
+    <origin xyz="0 0 0.05"/><axis xyz="0 1 0"/>
+    <limit lower="-1.6" upper="1.6" effort="1.5" velocity="5.4"/>
+  </joint>
+  <joint name="elbow" type="revolute">
+    <parent link="upper_arm"/><child link="forearm"/>
+    <origin xyz="0.13 0 0"/><axis xyz="0 1 0"/>
+    <limit lower="-2.0" upper="2.0" effort="1.5" velocity="5.4"/>
+  </joint>
+  <joint name="wrist_pitch" type="revolute">
+    <parent link="forearm"/><child link="wrist"/>
+    <origin xyz="0.11 0 0"/><axis xyz="0 1 0"/>
+    <limit lower="-1.8" upper="1.8" effort="1.5" velocity="5.4"/>
+  </joint>
+  <joint name="gripper_mount" type="fixed">
+    <parent link="wrist"/><child link="gripper"/>
+    <origin xyz="0.05 0 0"/>
+  </joint>
+</robot>

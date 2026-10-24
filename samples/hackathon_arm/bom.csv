@@ -1,0 +1,11 @@
+sku,qty,joint,note
+xl430-w250-t,1,base_yaw,
+xl430-w250-t,1,shoulder,
+xl430-w250-t,1,elbow,
+xl430-w250-t,1,wrist_pitch,
+fr12-h101k,3,,
+fr12-s101k,1,,
+u2d2,1,,
+cable-x3p-180,4,,
+smps-12v-5a,1,,
+rpi5-8gb,1,,

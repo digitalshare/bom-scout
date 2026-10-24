@@ -1,0 +1,23 @@
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"   # Redis protocol
+      - "3000:3000"   # FalkorDB browser UI
+    volumes:
+      - falkordb-data:/var/lib/falkordb/data
+
+  falkordb-mcp:
+    image: falkordb/mcpserver:latest
+    environment:
+      - FALKORDB_HOST=falkordb
+      - FALKORDB_PORT=6379
+      - MCP_TRANSPORT=http
+      - MCP_PORT=8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - falkordb
+
+volumes:
+  falkordb-data:

@@ -1,0 +1,84 @@
+{
+  "protocols": {
+    "dxl_p1": {"name": "DYNAMIXEL Protocol 1.0", "bus": "TTL half-duplex"},
+    "dxl_p2": {"name": "DYNAMIXEL Protocol 2.0", "bus": "TTL half-duplex"},
+    "feetech_scs": {"name": "Feetech SCS/STS bus protocol", "bus": "TTL half-duplex"},
+    "usb": {"name": "USB 2.0", "bus": "USB"}
+  },
+  "connectors": {
+    "jst_ehr03": "JST EHR-03 3-pin (DYNAMIXEL X3P)",
+    "molex_3p": "Molex 22-03-5035 3-pin (DYNAMIXEL legacy)",
+    "feetech_5264": "Molex 5264 3-pin (Feetech)",
+    "usb_micro": "USB micro-B",
+    "usb_c": "USB-C",
+    "xt60": "XT60",
+    "dc_barrel": "DC barrel 5.5x2.5mm"
+  },
+  "mounts": {
+    "x430": "X430 frame 28.5 x 46.5 x 34 mm, FR12 bracket pattern",
+    "2xl430": "2XL430 dual-axis frame 36 x 46.5 x 36 mm",
+    "xl330": "XL330 frame 20 x 34 x 26 mm",
+    "ax12": "AX-12 frame 32 x 50 x 40 mm, F-series bracket pattern",
+    "sts3215": "STS3215 frame 45.2 x 24.7 x 35 mm"
+  },
+  "ros_drivers": {
+    "dynamixel_hardware": {"name": "dynamixel_hardware (ros2_control)", "repo": "https://github.com/dynamixel-community/dynamixel_hardware"},
+    "dynamixel_sdk": {"name": "DynamixelSDK", "repo": "https://github.com/ROBOTIS-GIT/DynamixelSDK"},
+    "feetech_ros2_driver": {"name": "feetech_ros2_driver", "repo": "https://github.com/JafarAbdi/feetech_ros2_driver"}
+  },
+  "vendors": {
+    "robotis_us": {"name": "ROBOTIS America", "search_url": "https://www.robotis.us/search?q={q}&type=product", "ships_from": "Corona, CA", "fastest_ship_days": 1, "cutoff_local": "14:00", "tz": "America/Los_Angeles"},
+    "digikey": {"name": "DigiKey", "search_url": "https://www.digikey.com/en/products/result?keywords={q}", "ships_from": "Thief River Falls, MN", "fastest_ship_days": 1, "cutoff_local": "20:00", "tz": "America/Chicago"},
+    "mouser": {"name": "Mouser", "search_url": "https://www.mouser.com/c/?q={q}", "ships_from": "Mansfield, TX", "fastest_ship_days": 1, "cutoff_local": "20:00", "tz": "America/Chicago"},
+    "aliexpress": {"name": "AliExpress", "search_url": "https://www.aliexpress.us/w/wholesale-{q}.html", "ships_from": "China", "fastest_ship_days": 7, "cutoff_local": "23:59", "tz": "Asia/Shanghai"},
+    "amazon": {"name": "Amazon", "search_url": "https://www.amazon.com/s?k={q}", "ships_from": "varies", "fastest_ship_days": 0, "cutoff_local": "12:00", "tz": "America/Los_Angeles"}
+  },
+  "parts": [
+    {"sku": "xl430-w250-t", "name": "DYNAMIXEL XL430-W250-T", "category": "servo", "mfr": "ROBOTIS", "query": "XL430-W250-T",
+     "v_min": 6.5, "v_max": 12.0, "stall_torque_nm": 1.5, "stall_current_a": 1.4, "mass_g": 57.2,
+     "protocols": ["dxl_p1", "dxl_p2"], "connector": "jst_ehr03", "mount": "x430", "ros_drivers": ["dynamixel_hardware", "dynamixel_sdk"]},
+    {"sku": "xc430-w150-t", "name": "DYNAMIXEL XC430-W150-T", "category": "servo", "mfr": "ROBOTIS", "query": "XC430-W150-T",
+     "v_min": 6.5, "v_max": 12.0, "stall_torque_nm": 1.6, "stall_current_a": 1.4, "mass_g": 65.0,
+     "protocols": ["dxl_p1", "dxl_p2"], "connector": "jst_ehr03", "mount": "x430", "ros_drivers": ["dynamixel_hardware", "dynamixel_sdk"]},
+    {"sku": "xc430-w240-t", "name": "DYNAMIXEL XC430-W240-T", "category": "servo", "mfr": "ROBOTIS", "query": "XC430-W240-T",
+     "v_min": 6.5, "v_max": 12.0, "stall_torque_nm": 1.9, "stall_current_a": 1.4, "mass_g": 65.0,
+     "protocols": ["dxl_p1", "dxl_p2"], "connector": "jst_ehr03", "mount": "x430", "ros_drivers": ["dynamixel_hardware", "dynamixel_sdk"]},
+    {"sku": "xm430-w350-t", "name": "DYNAMIXEL XM430-W350-T", "category": "servo", "mfr": "ROBOTIS", "query": "XM430-W350-T",
+     "v_min": 10.0, "v_max": 14.8, "stall_torque_nm": 4.1, "stall_current_a": 2.3, "mass_g": 82.0,
+     "protocols": ["dxl_p1", "dxl_p2"], "connector": "jst_ehr03", "mount": "x430", "ros_drivers": ["dynamixel_hardware", "dynamixel_sdk"]},
+    {"sku": "2xl430-w250-t", "name": "DYNAMIXEL 2XL430-W250-T (dual axis)", "category": "servo", "mfr": "ROBOTIS", "query": "2XL430-W250-T",
+     "v_min": 6.5, "v_max": 12.0, "stall_torque_nm": 1.5, "stall_current_a": 1.4, "mass_g": 98.2,
+     "protocols": ["dxl_p1", "dxl_p2"], "connector": "jst_ehr03", "mount": "2xl430", "ros_drivers": ["dynamixel_hardware", "dynamixel_sdk"]},
+    {"sku": "xl330-m288-t", "name": "DYNAMIXEL XL330-M288-T", "category": "servo", "mfr": "ROBOTIS", "query": "XL330-M288-T",
+     "v_min": 3.7, "v_max": 6.0, "stall_torque_nm": 0.52, "stall_current_a": 1.47, "mass_g": 18.0,
+     "protocols": ["dxl_p2"], "connector": "jst_ehr03", "mount": "xl330", "ros_drivers": ["dynamixel_hardware", "dynamixel_sdk"]},
+    {"sku": "ax-12a", "name": "DYNAMIXEL AX-12A", "category": "servo", "mfr": "ROBOTIS", "query": "AX-12A",
+     "v_min": 9.0, "v_max": 12.0, "stall_torque_nm": 1.5, "stall_current_a": 1.5, "mass_g": 54.6,
+     "protocols": ["dxl_p1"], "connector": "molex_3p", "mount": "ax12", "ros_drivers": ["dynamixel_sdk"]},
+    {"sku": "sts3215", "name": "Feetech STS3215 (7.4V)", "category": "servo", "mfr": "Feetech", "query": "Feetech STS3215",
+     "v_min": 6.0, "v_max": 8.4, "stall_torque_nm": 1.91, "stall_current_a": 2.7, "mass_g": 55.0,
+     "protocols": ["feetech_scs"], "connector": "feetech_5264", "mount": "sts3215", "ros_drivers": ["feetech_ros2_driver"]},
+
+    {"sku": "u2d2", "name": "ROBOTIS U2D2 USB-to-TTL/RS485", "category": "adapter", "mfr": "ROBOTIS", "query": "U2D2",
+     "bridges": ["dxl_p1", "dxl_p2"], "connectors": ["jst_ehr03", "molex_3p", "usb_micro"]},
+    {"sku": "fe-urt-1", "name": "Feetech FE-URT-1 bus servo adapter", "category": "adapter", "mfr": "Feetech", "query": "Feetech FE-URT-1",
+     "bridges": ["feetech_scs"], "connectors": ["feetech_5264", "usb_c"]},
+    {"sku": "openrb-150", "name": "ROBOTIS OpenRB-150 controller", "category": "adapter", "mfr": "ROBOTIS", "query": "OpenRB-150",
+     "bridges": ["dxl_p1", "dxl_p2"], "connectors": ["jst_ehr03", "usb_micro"]},
+
+    {"sku": "fr12-h101k", "name": "ROBOTIS FR12-H101K hinge bracket", "category": "bracket", "mfr": "ROBOTIS", "query": "FR12-H101K", "fits": ["x430"]},
+    {"sku": "fr12-s101k", "name": "ROBOTIS FR12-S101K side bracket", "category": "bracket", "mfr": "ROBOTIS", "query": "FR12-S101K", "fits": ["x430"]},
+    {"sku": "fp04-f2", "name": "ROBOTIS FP04-F2 bracket", "category": "bracket", "mfr": "ROBOTIS", "query": "FP04-F2", "fits": ["ax12"]},
+
+    {"sku": "cable-x3p-180", "name": "ROBOTIS Robot Cable-X3P 180mm", "category": "cable", "mfr": "ROBOTIS", "query": "Robot Cable-X3P 180mm", "connectors": ["jst_ehr03"]},
+    {"sku": "cable-x3p-molex", "name": "ROBOTIS Robot Cable-X3P convertible (Molex to JST)", "category": "cable", "mfr": "ROBOTIS", "query": "Robot Cable-X3P Convertible", "connectors": ["jst_ehr03", "molex_3p"]},
+
+    {"sku": "smps-12v-5a", "name": "ROBOTIS SMPS 12V 5A", "category": "power", "mfr": "ROBOTIS", "query": "SMPS 12V 5A ROBOTIS",
+     "v_out": 12.0, "max_current_a": 5.0, "connectors": ["dc_barrel"]},
+    {"sku": "lipo-3s-1800", "name": "ROBOTIS LB-020 LiPo 11.1V 1800mAh", "category": "power", "mfr": "ROBOTIS", "query": "LB-020 LiPo 11.1V",
+     "v_out": 11.1, "max_current_a": 36.0, "connectors": ["xt60"]},
+
+    {"sku": "rpi5-8gb", "name": "Raspberry Pi 5 8GB", "category": "compute", "mfr": "Raspberry Pi", "query": "Raspberry Pi 5 8GB", "connectors": ["usb_c"]},
+    {"sku": "bno085", "name": "Adafruit BNO085 9-DOF IMU", "category": "sensor", "mfr": "Adafruit", "query": "Adafruit BNO085", "connectors": []}
+  ]
+}

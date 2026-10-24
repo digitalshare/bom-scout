@@ -1,0 +1,58 @@
+{
+  "id": "team_scout",
+  "name": "Team Scout",
+  "build": "scout_arm",
+  "payload_kg": 0.1,
+  "tip_link": "gripper",
+  "safety_factor": 1.5,
+  "supply_sku": "smps-12v-5a",
+  "budget_cap_usd": 150,
+  "venue": {
+    "name": "Hackathon venue",
+    "address": "EDIT ME: street address",
+    "zip": "94103",
+    "tz": "America/Los_Angeles"
+  },
+  "deadline_local": "21:00",
+  "owns": [
+    {
+      "sku": "u2d2",
+      "qty": 1
+    },
+    {
+      "sku": "fr12-h101k",
+      "qty": 5
+    },
+    {
+      "sku": "fr12-s101k",
+      "qty": 2
+    },
+    {
+      "sku": "cable-x3p-180",
+      "qty": 6
+    },
+    {
+      "sku": "cable-x3p-molex",
+      "qty": 1
+    },
+    {
+      "sku": "smps-12v-5a",
+      "qty": 1
+    },
+    {
+      "sku": "xl330-m288-t",
+      "qty": 2
+    },
+    {
+      "sku": "ax-12a",
+      "qty": 1
+    }
+  ],
+  "broken": [
+    {
+      "joint": "elbow",
+      "sku": "xl430-w250-t"
+    }
+  ],
+  "bus_protocol": "dxl_p2"
+}
