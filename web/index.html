@@ -58,6 +58,10 @@
   td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
   #approval .total { font-size: 20px; font-weight: 700; }
   .hidden { display: none; }
+  .pc td { vertical-align: top; }
+  .pc .verdict { display: inline-block; min-width: 46px; text-align: center; cursor: help; }
+  .pc tr.pick td:first-child { box-shadow: inset 3px 0 0 var(--ok); padding-left: 6px; }
+  .pc th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 0; }
   .thumb { width: 56px; height: 56px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 6px; flex: none; }
   .cand-title { display: flex; gap: 10px; align-items: center; }
   .offer .thumb { float: right; width: 48px; height: 48px; margin-left: 6px; }
@@ -138,6 +142,12 @@
         <button class="secondary" type="button" id="reset-graph">Reset view</button>
       </div>
       <div id="graph-detail" class="muted">Click a part to see its path from the broken servo.</div>
+    </section>
+    <section>
+      <h2>Pit Crew</h2>
+      <div class="row"><button type="button" class="secondary" id="pc-go">Run Pit Crew review</button>
+        <span class="muted">mechanical · electrical · budget, each candidate checked against the shared graph</span></div>
+      <div id="pitcrew" class="muted" style="margin-top:10px"></div>
     </section>
     <section>
       <h2>Substitution paths (FalkorDB)</h2>
@@ -243,6 +253,7 @@ function showNode(node) {
   $("graph-detail").innerHTML = `<b>${esc(d.label)}</b> <span class="muted">${esc(d.kind)}${d.owned ? ` · you own ${d.owned}` : ""}</span>` +
     (det.path ? `<div class="muted">${esc(det.path.join(" → "))}</div>` : "") +
     (det.reasons ? `<ul class="reasons">${det.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${det.gaps.map((x) => `<li class="gap">${esc(x)}</li>`).join("")}</ul>` : "") +
+    (det.constraints && det.constraints.length ? `<div>${det.constraints.map((c) => `<span class="badge ${VERDICT_CLASS[c.verdict]}" title="${esc(c.reason)}">${esc(c.agent)}${c.source === "agent" ? " ✱" : ""}: ${c.verdict}</span>`).join(" ")}</div>` : "") +
     (det.vendor ? `<div>${esc(det.vendor)} · ${esc(det.lead_time || "")} · ${esc(det.source)} ${det.url ? `<a href="${esc(det.url)}" target="_blank" rel="noopener">listing ↗</a>` : ""}</div>` : "");
 }
 
@@ -333,6 +344,37 @@ function renderApproval(a) {
   $("approval-result").textContent = "Nothing is ordered until you approve.";
 }
 
+const VERDICT_CLASS = {pass: "ok", warn: "warn", fail: "bad"};
+
+function renderPitCrew(r) {
+  if (!r || !r.rows) return;
+  const agents = ["mechanical", "electrical", "budget"];
+  const recorded = {};
+  for (const x of r.recorded || []) recorded[x.sku + "/" + x.agent] = x;
+  const chip = (row, a) => {
+    const v = row.verdicts[a], rec = recorded[row.sku + "/" + a];
+    const title = v.reason + (rec ? `\n${a} subagent: ${rec.verdict} (${rec.reason})` : "");
+    return `<span class="badge verdict ${VERDICT_CLASS[v.verdict]}" title="${esc(title)}">${v.verdict}${rec ? " ✱" : ""}</span>`;
+  };
+  $("pitcrew").className = "";
+  $("pitcrew").innerHTML = `<p>${r.today_pick ? `Today: <b>${esc(r.today_pick)}</b>` : "Nothing passes for today"} · ` +
+    `Recommended: <b>${esc(r.recommended || "none")}</b> <span class="muted">(${esc(r.joint)}, replaces ${esc(r.replaces)}, cap $${r.cap_usd}, deadline ${esc(r.deadline)})</span></p>
+    <table class="pc"><tr><th>Option</th>${agents.map((a) => `<th>${a}</th>`).join("")}<th>Arrives</th></tr>
+    ${r.rows.map((row) => `<tr class="${row.sku === r.recommended || row.sku === r.today_pick ? "pick" : ""}">
+      <td>${esc(row.name.replace("DYNAMIXEL ", ""))}${row.owned_qty ? ' <span class="badge">owned</span>' : ""}</td>
+      ${agents.map((a) => `<td>${chip(row, a)}</td>`).join("")}
+      <td class="muted">${esc(row.deliver_by || "–")}${row.price_usd ? ` · $${row.price_usd.toFixed(2)}` : ""}</td></tr>`).join("")}</table>` +
+    (r.conflicts.length ? `<p><b>Conflicts</b></p><ul class="reasons">${r.conflicts.map((c) => `<li class="gap">${esc(c.text)}</li>`).join("")}</ul>` : "") +
+    `<p class="muted">Hover a verdict for its reason. ✱ = a review subagent recorded its own verdict.</p>`;
+}
+
+$("pc-go").onclick = async () => {
+  $("pitcrew").textContent = "Reviewing…";
+  const joint = graphData && graphData.joint;
+  renderPitCrew(await fetch(joint ? `/pitcrew?joint=${encodeURIComponent(joint)}` : "/pitcrew", {method: "POST"}).then((r) => r.json()));
+  loadGraph(joint);
+};
+
 function renderBuild(r) {
   if (!r || !r.joints) return;
   $("build").className = "";
@@ -380,6 +422,7 @@ function handle(ev) {
     if (ev.result && ev.result.error) step(`<span style="color:var(--bad)">✖ ${esc(ev.result.error)}</span>`);
     else if (ev.name === "find_substitutes") { renderSubs(ev.result); loadGraph(ev.result.joint); }
     else if (ev.name === "get_offers") { renderOffers(ev.result); loadGraph(graphData && graphData.joint); }
+    else if (ev.name === "pit_crew_review") { renderPitCrew(ev.result); loadGraph(ev.result.joint); }
     else if (ev.name === "load_build") { renderBuild(ev.result); loadTeam(); loadGraph(); }
     else if (ev.name === "check_budget") renderBudget(ev.result);
     else if (ev.name === "add_to_cart") renderCart(ev.result.items || []);

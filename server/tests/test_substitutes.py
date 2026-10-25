@@ -85,3 +85,23 @@ def test_replace_build_swaps_joints_and_reset_restores_demo(g):
     names = {n for (n,) in g.query("MATCH (:Team {id:'team_scout'})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j) RETURN j.name").result_set}
     assert names == {"base_yaw", "shoulder", "elbow", "wrist_pitch"}
     assert g.query("MATCH (j:Joint {name:'elbow'}) RETURN j.status").result_set[0][0] == "broken"
+
+
+def test_pit_crew_flags_the_torque_vs_cost_conflict_and_picks_the_bin_for_today(g):
+    from bomscout import graph as graph_mod, pitcrew
+
+    # offers as the cache would give them: XM430 fits the torque budget but costs $310, XC430 is $137.89
+    graph_mod.upsert_offers(g, [
+        {"sku": sku, "vendor": "robotis_us", "error": None, "offers": [{
+            "sku": sku, "vendor": "robotis_us", "title": sku, "price_usd": price, "in_stock": True, "stock_qty": None,
+            "lead_time": None, "deliver_by": "2099-01-01", "arrives_today": False, "url": None, "source": "cache",
+            "fetched_at": "2026-10-24T14:00:00", "image_url": None}]}
+        for sku, price in (("xm430-w350-t", 310.39), ("xc430-w150-t", 137.89), ("xl430-w250-t", 27.5))])
+    r = pitcrew.review(g, "team_scout", "elbow")
+    rows = {x["sku"]: x["verdicts"] for x in r["rows"]}
+    assert all(v["verdict"] == "pass" for a, v in rows["xc430-w150-t"].items() if a != "budget")
+    assert rows["xm430-w350-t"]["mechanical"]["verdict"] == "pass" and rows["xm430-w350-t"]["budget"]["verdict"] == "fail"
+    assert any(c["sku"] == "xm430-w350-t" for c in r["conflicts"])
+    assert rows["xl330-m288-t"]["electrical"]["verdict"] == "fail"
+    assert r["today_pick"] == "ax-12a"  # the only option that clears every check and is already in the bin
+    assert g.query("MATCH (c:Constraint {source: 'computed'}) RETURN count(c)").result_set[0][0] == 3 * len(r["rows"])

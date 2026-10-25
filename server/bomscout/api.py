@@ -16,7 +16,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import agent, graph_view, sizing, trueforge_runner
+from . import agent, graph_view, pitcrew, sizing, trueforge_runner
 from .inputs import apply_bom, parse_bom, parse_urdf
 from .graph import connect
 
@@ -73,6 +73,12 @@ def graph(joint: str | None = None):
         return graph_view.subgraph(g, TEAM, joint)
     except ValueError:  # the joint is from a build that has since been replaced
         return graph_view.subgraph(g, TEAM, graph_view.default_joint(g, TEAM))
+
+
+@app.post("/pitcrew")
+def pit_crew(joint: str | None = None):
+    g = connect()
+    return pitcrew.review(g, TEAM, joint or graph_view.default_joint(g, TEAM))
 
 
 @app.get("/what-if/{sku}")

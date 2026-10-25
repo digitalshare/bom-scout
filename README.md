@@ -51,6 +51,16 @@ The budget maths then gives each joint's torque, and every joint without a part 
 
 Specs for the stronger servos (XM430-W210, XH430-W350, XM540-W270, XH540-W270) are from the ROBOTIS e-manual at 12 V, and prices are from robotis.us (2026-10-24).
 
+## Pit Crew
+Mechanical, electrical and budget reviewers check every option for a joint, plus a like-for-like replacement, against the same graph:
+- **mechanical**: torque margin, mount and bracket gaps
+- **electrical**: voltage, bus protocol, connectors, extra stall current on the supply
+- **budget**: price vs the $150 cap, arrival vs today's 17:30 deadline
+
+Each verdict is a `(:Constraint)-[:ON]->(:Part)`, `-[:AT]->(:Joint)` node. A conflict is an option that one reviewer passes and another fails, e.g. "XM430: mechanical pass (9.9x static), budget fail ($310 breaks the $150 cap)". The review returns today's pick (the AX-12A in the bin) and the recommended repair (a like-for-like XL430, Tuesday).
+
+On TrueForge, "Pit Crew review the elbow options" spawns three real subagents. Each records its own verdicts with `record_constraint` (marked ✱ in the UI). The main agent then compares them with the computed `pit_crew_review` and resolves the conflicts. Use the **Run Pit Crew review** button, or `POST /pitcrew?joint=elbow`.
+
 ## What the graph shows
 - **Web UI graph panel** (`GET /graph?joint=elbow`, Cytoscape). It shows the build, the broken part, every candidate and the protocol, connector, mount and driver nodes that link them. Parts you own get a blue ring, rejected candidates are faded, and live offers hang off their vendor. Click a candidate to highlight its path. "What if we lose…" (`GET /what-if/{sku}`) lights up the failure chain. For example, the only U2D2 → Protocol 2.0 → every XL430 joint.
 - **Part photos** are hotlinked from the vendor listings (robotis.us, Digi-Key, Amazon) and kept on `Part.image_url`. No image files are in this repo.

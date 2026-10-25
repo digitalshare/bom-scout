@@ -10,7 +10,7 @@ import os
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from . import budget, graph_view, sizing
+from . import budget, graph_view, pitcrew, sizing
 from .agent import Tools
 from .graph import connect
 
@@ -97,6 +97,21 @@ def load_build(description: str) -> dict:
     catalog servo that clears it. Returns per-joint static/needed torque, chosen sku, price and why; unsized joints
     have no catalog part strong enough."""
     return _tools().load_build(description)
+
+
+@server.tool(annotations=READ)
+def pit_crew_review(joint: str, skus: list[str] | None = None) -> dict:
+    """Mechanical, electrical and budget review of every option for a joint (plus a like-for-like replacement),
+    computed from the graph: pass/warn/fail per discipline with reasons, conflicts (one passes, another fails), the
+    recommended part, today's best option, and any verdicts the review subagents recorded. Pass skus to narrow it."""
+    return _tools().pit_crew_review(joint, skus)
+
+
+@server.tool(annotations=WRITE)
+def record_constraint(agent: str, joint: str, sku: str, verdict: str, reason: str) -> dict:
+    """A Pit Crew reviewer's verdict on one candidate. agent: mechanical | electrical | budget.
+    verdict: pass | warn | fail. reason: one line citing the numbers. Stored in the graph beside the computed review."""
+    return pitcrew.record(connect(), TEAM, agent, joint, sku, verdict, reason)
 
 
 @server.tool(annotations=READ)

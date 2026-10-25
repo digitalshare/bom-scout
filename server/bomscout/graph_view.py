@@ -67,6 +67,13 @@ def subgraph(g: Graph, team: str, joint: str) -> dict:
 
     owned = {sku: qty for sku, qty in g.query(
         "MATCH (:Team {id: $team})-[o:OWNS]->(p:Part) RETURN p.sku, o.qty", {"team": team}).result_set}
+    constraints: dict[str, list[dict]] = {}
+    for sku, agent, verdict, reason, source in g.query(
+            """MATCH (:Team {id: $team})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j:Joint {name: $joint})
+               MATCH (c:Constraint)-[:AT]->(j), (c)-[:ON]->(p:Part)
+               RETURN p.sku, c.agent, c.verdict, c.reason, c.source ORDER BY c.agent""",
+            {"team": team, "joint": joint}).result_set:
+        constraints.setdefault(sku, []).append({"agent": agent, "verdict": verdict, "reason": reason, "source": source})
     joint_broken = g.query("""MATCH (:Team {id: $team})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j:Joint {name: $joint})
                               RETURN j.status = 'broken'""", {"team": team, "joint": joint}).result_set[0][0]
     broken_joints = {name for (name,) in g.query(
@@ -82,7 +89,8 @@ def subgraph(g: Graph, team: str, joint: str) -> dict:
         elif kind == "Part" and p["sku"] in cands:
             c = cands[p["sku"]]
             node["status"] = "rejected" if not c["ok"] else ("gaps" if c["gaps"] else "dropin")
-            node["detail"] = {"reasons": c["reasons"], "gaps": c["gaps"], "path": c["path"]}
+            node["detail"] = {"reasons": c["reasons"], "gaps": c["gaps"], "path": c["path"],
+                              "constraints": constraints.get(p["sku"], [])}
         elif kind == "Joint" and p["name"] in broken_joints:
             node["status"] = "broken"
         elif kind == "Offer":

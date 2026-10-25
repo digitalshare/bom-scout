@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from falkordb import Graph
 from openai import OpenAI
 
-from . import budget, offers, sizing, substitutes
+from . import budget, offers, pitcrew, sizing, substitutes
 from .graph import connect, upsert_offers
 
 DEFAULT_MODEL = os.environ.get("BOMSCOUT_MODEL", "gpt-5.5")
@@ -33,7 +33,8 @@ How to work:
 3. Check team_inventory: a part the team already owns beats anything that has to ship.
 4. get_offers for the original part and the best substitutes (at most 4 skus). Offers marked source=cache are from an
    earlier scrape; say so. Never invent a price, stock level or delivery date that a tool did not return.
-5. check_budget for the part you recommend (torque at that joint plus the whole power budget).
+5. pit_crew_review for that joint: lead with its today_pick and recommended part, and name any conflict.
+   check_budget for the part you recommend (torque at that joint plus the whole power budget).
 6. propose_cart with the parts to buy. It waits for the team's approval; you never order anything yourself.
 
 For a new robot ("6-DOF arm, 2kg payload"), call load_build, then get_offers for the sized skus and propose_cart.
@@ -58,6 +59,8 @@ TOOL_SPECS = [
                     "required": ["joint", "sku"], "additionalProperties": False}},
     {"name": "load_build", "description": "Replace the team's build with a new robot from a one-line description (e.g. '6-DOF arm, 2kg payload'), size an actuator for every joint, and return the sizing table.",
      "parameters": {"type": "object", "properties": {"description": {"type": "string"}}, "required": ["description"], "additionalProperties": False}},
+    {"name": "pit_crew_review", "description": "Mechanical, electrical and budget review of every option for a joint (plus a like-for-like replacement): pass/warn/fail per discipline with reasons, conflicts between disciplines, the recommended part and the best option available today.",
+     "parameters": {"type": "object", "properties": {"joint": {"type": "string"}}, "required": ["joint"], "additionalProperties": False}},
     {"name": "propose_cart", "description": "Propose parts to buy. Creates a pending approval for the team; nothing is ordered.",
      "parameters": {"type": "object", "properties": {
          "summary": {"type": "string", "description": "one paragraph: what to do today, what arrives when"},
@@ -103,6 +106,9 @@ class Tools:
         from .inputs import describe_to_build
 
         return sizing.load_new_build(self.g, self.team, describe_to_build(description), self.catalog)
+
+    def pit_crew_review(self, joint: str, skus: list[str] | None = None) -> dict:
+        return pitcrew.review(self.g, self.team, joint, skus)
 
     def check_budget(self, joint: str, sku: str) -> dict:
         p = self.parts[sku]
