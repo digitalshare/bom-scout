@@ -7,6 +7,9 @@ import json
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
 
 from .models import BomLine, Build, Joint, Link
 
@@ -57,33 +60,74 @@ def parse_bom(path: Path) -> list[BomLine]:
         ]
 
 
+def apply_bom(build: Build, bom: list[BomLine]) -> Build:
+    """Attaches the BOM and sets each joint's actuator from the BOM lines that name a joint."""
+    build.bom = bom
+    by_joint = {line.joint: line.sku for line in bom if line.joint}
+    for j in build.joints:
+        j.sku = by_joint.get(j.name, j.sku)
+    return build
+
+
 def load_build_dir(build_dir: Path) -> tuple[Build, dict]:
     """A build folder holds arm.urdf (optional), bom.csv and team.json."""
     team = json.loads((build_dir / "team.json").read_text())
     urdfs = list(build_dir.glob("*.urdf"))
     build = parse_urdf(urdfs[0]) if urdfs else Build(id=team["build"])
-    build.bom = parse_bom(build_dir / "bom.csv")
-    by_joint = {line.joint: line.sku for line in build.bom if line.joint}
-    for j in build.joints:
-        j.sku = by_joint.get(j.name)
+    apply_bom(build, parse_bom(build_dir / "bom.csv"))
     build.payload_kg = team.get("payload_kg", 0.0)
     build.tip_link = team.get("tip_link")
     return build, team
 
 
 DESCRIBE_INSTRUCTIONS = """You turn a one-line robot description into a rough serial-arm model for a torque budget.
-Lay the arm out stretched along +x at the zero pose. Joint axes: base yaw is (0,0,1); pitch joints are (0,1,0).
-Each link mass includes the actuator at its far end. Use realistic hobby/competition masses and lengths.
-Pick actuator skus only from this catalog list, or leave sku null: {skus}"""
+Lay the arm out stretched along +x at the zero pose. Joint axes: base yaw is (0,0,1); pitch joints are (0,1,0);
+roll joints along the arm are (1,0,0). Joint origins are the offset from the parent link's frame (translation only).
+Each link's mass includes the actuator bolted to its far end; com is in the link's own frame.
+Put the payload at the last link (tip_link) via payload_kg; do not add it to that link's mass.
+Use realistic hobby/competition masses and lengths. Leave sku null: the actuators are sized afterwards."""
 
 
-def describe_to_build(text: str, catalog_skus: list[str]) -> Build:
+class _Vec(BaseModel):
+    x: float
+    y: float
+    z: float
+
+
+class _LinkDraft(BaseModel):
+    name: str
+    mass_kg: float
+    com: _Vec
+
+
+class _JointDraft(BaseModel):
+    name: str
+    type: Literal["revolute", "fixed"]
+    parent: str
+    child: str
+    origin: _Vec
+    axis: _Vec
+
+
+class _BuildDraft(BaseModel):
+    id: str
+    links: list[_LinkDraft]
+    joints: list[_JointDraft]
+    payload_kg: float
+    tip_link: str
+
+
+def describe_to_build(text: str) -> Build:
+    """One-line description -> Build. OpenAI structured output can't take tuples, so it fills a draft schema."""
     from openai import OpenAI
 
-    resp = OpenAI().responses.parse(
-        model=DEFAULT_MODEL,
-        instructions=DESCRIBE_INSTRUCTIONS.format(skus=", ".join(catalog_skus)),
-        input=text,
-        text_format=Build,
+    d = OpenAI().responses.parse(
+        model=DEFAULT_MODEL, instructions=DESCRIBE_INSTRUCTIONS, input=text, text_format=_BuildDraft,
+    ).output_parsed
+    vec = lambda v: (v.x, v.y, v.z)  # noqa: E731
+    return Build(
+        id=d.id, payload_kg=d.payload_kg, tip_link=d.tip_link,
+        links=[Link(name=l.name, mass_kg=l.mass_kg, com=vec(l.com)) for l in d.links],
+        joints=[Joint(name=j.name, type=j.type, parent=j.parent, child=j.child, origin=vec(j.origin), axis=vec(j.axis))
+                for j in d.joints],
     )
-    return resp.output_parsed

@@ -65,3 +65,23 @@ def test_losing_the_only_u2d2_stops_every_joint(g):
     r = graph_view.what_if_lost(g, "team_scout", "u2d2")
     assert {j["joint"] for j in r["joints"]} == {"base_yaw", "shoulder", "elbow", "wrist_pitch"}
     assert graph_view.what_if_lost(g, "team_scout", "rpi5-8gb")["joints"] == []
+
+
+def test_replace_build_swaps_joints_and_reset_restores_demo(g):
+    import json
+
+    from bomscout import sizing
+    from bomscout.models import Build, Joint, Link
+
+    catalog = json.loads((SAMPLES / "catalog.json").read_text())
+    small = Build(id="gripper_bot", payload_kg=0.05, tip_link="finger",
+                  links=[Link(name="base"), Link(name="finger", mass_kg=0.02, com=(0.02, 0, 0))],
+                  joints=[Joint(name="pinch", parent="base", child="finger", origin=(0.05, 0, 0), axis=(0, 1, 0))])
+    r = sizing.load_new_build(g, "team_scout", small, catalog)
+    assert [row["joint"] for row in r["joints"]] == ["pinch"] and r["joints"][0]["sku"]
+    names = {n for (n,) in g.query("MATCH (:Team {id:'team_scout'})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j) RETURN j.name").result_set}
+    assert names == {"pinch"}
+    sizing.reset_demo(g, "team_scout", catalog)
+    names = {n for (n,) in g.query("MATCH (:Team {id:'team_scout'})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j) RETURN j.name").result_set}
+    assert names == {"base_yaw", "shoulder", "elbow", "wrist_pitch"}
+    assert g.query("MATCH (j:Joint {name:'elbow'}) RETURN j.status").result_set[0][0] == "broken"

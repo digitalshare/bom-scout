@@ -77,6 +77,22 @@
 <main>
   <div>
     <section>
+      <h2>Your robot</h2>
+      <form id="build-form">
+        <textarea id="desc" placeholder="Describe it, e.g. 6-DOF desk arm, 300 g payload"></textarea>
+        <div class="row">
+          <button type="submit" id="build-go">Load build</button>
+          <button type="button" class="secondary" id="build-reset">Reset to demo arm</button>
+        </div>
+        <div class="row">
+          <label>URDF <input type="file" id="urdf" accept=".urdf,.xml"></label>
+          <label>BOM (optional) <input type="file" id="bom" accept=".csv"></label>
+          <button type="button" class="secondary" id="upload-go">Upload</button>
+        </div>
+      </form>
+      <div id="build" class="muted"></div>
+    </section>
+    <section>
       <h2>Ask</h2>
       <form id="ask">
         <textarea id="q">It's 2pm at the hackathon and the elbow servo just burned out. What can I get delivered to the venue today?</textarea>
@@ -111,7 +127,7 @@
       <h2>Compatibility graph (FalkorDB)</h2>
       <div id="cy"></div>
       <div class="legend">
-        <span><i style="background:#dc2626"></i>broken</span><span><i style="background:#16a34a"></i>drop-in</span>
+        <span><i style="background:#dc2626"></i>broken</span><span><i style="background:#ea580c"></i>part on this joint</span><span><i style="background:#16a34a"></i>drop-in</span>
         <span><i style="background:#ca8a04"></i>fits with gaps</span><span><i style="background:#9ca3af"></i>rejected</span>
         <span><i style="background:#2563eb"></i>you own it</span><span><i style="background:#7c3aed"></i>spec (protocol, connector, mount, driver)</span>
         <span><i style="background:#0d9488"></i>offer / vendor</span>
@@ -142,17 +158,18 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 let team = null, approvalId = null;
 
-fetch("/team").then((r) => r.json()).then((t) => {
+function loadTeam() { return fetch("/team").then((r) => r.json()).then((t) => {
   team = t.team;
   const broken = t.joints.filter((j) => j.status === "broken").map((j) => `${j.joint} (${j.sku})`).join(", ");
   $("teamline").textContent = `${t.runtime === "trueforge" ? "agent on TrueForge" : "local agent"} · ${team.name} · venue ${team.venue_zip} · needs parts by ${team.deadline_local} · budget $${team.budget_cap_usd} · broken: ${broken || "none"}`;
-});
+}); }
+loadTeam();
 
 // Product photos are hotlinked from the vendor's CDN; a broken link just disappears.
 const thumb = (url) => url ? `<img class="thumb" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
 
 // ---------- graph panel ----------
-const COLORS = {broken: "#dc2626", dropin: "#16a34a", gaps: "#ca8a04", rejected: "#9ca3af", owned: "#2563eb",
+const COLORS = {broken: "#dc2626", focus: "#ea580c", dropin: "#16a34a", gaps: "#ca8a04", rejected: "#9ca3af", owned: "#2563eb",
                 today: "#16a34a", instock: "#0d9488", later: "#9ca3af"};
 const KIND_COLOR = {Protocol: "#7c3aed", Connector: "#7c3aed", MountPattern: "#7c3aed", RosDriver: "#7c3aed",
                     Vendor: "#0d9488", Offer: "#0d9488", Team: "#475569", Build: "#475569", Joint: "#475569"};
@@ -178,10 +195,10 @@ function graphStyle(ink) {
   ];
 }
 
-async function loadGraph(joint = "elbow") {
+async function loadGraph(joint = "") {
   if (!window.cytoscape) { $("graph-detail").textContent = "Graph library failed to load."; return; }
   const ticket = ++graphTicket;  // the agent can trigger several redraws in a row; only the latest one draws
-  const data = await fetch(`/graph?joint=${encodeURIComponent(joint)}`).then((r) => r.json());
+  const data = await fetch(joint ? `/graph?joint=${encodeURIComponent(joint)}` : "/graph").then((r) => r.json());
   if (ticket !== graphTicket) return;
   graphData = data;
   const ink = getComputedStyle(document.body).color;
@@ -316,6 +333,41 @@ function renderApproval(a) {
   $("approval-result").textContent = "Nothing is ordered until you approve.";
 }
 
+function renderBuild(r) {
+  if (!r || !r.joints) return;
+  $("build").className = "";
+  $("build").innerHTML = `<p class="muted">${esc(r.build)} · payload ${r.payload_kg} kg · parts ${r.total_usd ? "$" + r.total_usd.toFixed(2) : "n/a"}` +
+    `${r.unsized.length ? ` · <span style="color:var(--bad)">${r.unsized.length} joint(s) need more torque than any catalog servo</span>` : ""}</p>
+    <table>${r.joints.map((j) => `<tr><td><b>${esc(j.joint)}</b> · needs ${j.needed_nm} N·m<br><span class="muted">${esc(j.why)}</span></td>
+      <td>${j.sku ? `${esc(j.sku)}${j.price_usd != null ? " · $" + j.price_usd.toFixed(2) : ""}` : '<span style="color:var(--bad)">none</span>'}</td></tr>`).join("")}</table>`;
+  $("q").value = r.unsized.length === r.joints.length ? $("q").value : "Source the parts for this build. What can be here by the deadline?";
+}
+
+async function buildRequest(url, opts) {
+  $("build").className = "muted";
+  $("build").textContent = "Working…";
+  const resp = await fetch(url, opts);
+  const r = await resp.json();
+  if (!resp.ok) { $("build").textContent = r.detail || "Failed."; return; }
+  renderBuild(r); loadTeam(); loadGraph();
+}
+$("build-form").onsubmit = (e) => {
+  e.preventDefault();
+  if (!$("desc").value.trim()) return;
+  buildRequest("/build/describe", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({description: $("desc").value})});
+};
+$("upload-go").onclick = () => {
+  if (!$("urdf").files[0]) { $("build").textContent = "Pick a URDF first."; return; }
+  const form = new FormData();
+  form.append("urdf", $("urdf").files[0]);
+  if ($("bom").files[0]) form.append("bom", $("bom").files[0]);
+  buildRequest("/build/upload", {method: "POST", body: form});
+};
+$("build-reset").onclick = () => {
+  $("q").value = "It's 2pm at the hackathon and the elbow servo just burned out. What can I get delivered to the venue today?";
+  buildRequest("/build/reset", {method: "POST"});
+};
+
 function renderCart(items) {
   $("approval-result").innerHTML = "Cart saved. Check out from each listing: " +
     items.map((i) => i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.sku)} @ ${esc(i.vendor)}</a>` : esc(i.sku)).join(", ");
@@ -327,7 +379,8 @@ function handle(ev) {
   else if (ev.type === "tool_result") {
     if (ev.result && ev.result.error) step(`<span style="color:var(--bad)">✖ ${esc(ev.result.error)}</span>`);
     else if (ev.name === "find_substitutes") { renderSubs(ev.result); loadGraph(ev.result.joint); }
-    else if (ev.name === "get_offers") { renderOffers(ev.result); loadGraph(); }
+    else if (ev.name === "get_offers") { renderOffers(ev.result); loadGraph(graphData && graphData.joint); }
+    else if (ev.name === "load_build") { renderBuild(ev.result); loadTeam(); loadGraph(); }
     else if (ev.name === "check_budget") renderBudget(ev.result);
     else if (ev.name === "add_to_cart") renderCart(ev.result.items || []);
   }

@@ -42,6 +42,15 @@ Before going on stage: `uv run python -m bomscout prewarm` (fresh offers and pho
 
 **If the network dies:** leave "Scrape vendors live" unticked. Offers come from the last scrape, marked `cache`, and a failed live scrape also falls back per vendor. The graph, budget and approval need no internet. The agent itself needs OpenAI.
 
+## Your robot: free text, URDF or BOM
+The **Your robot** panel (or the agent's `load_build` tool) replaces the team's build:
+- **Free text** ("4-DOF desk arm, 300 g payload"): OpenAI drafts links and joints.
+- **URDF**, with an optional **BOM** CSV that names parts per joint.
+
+The budget maths then gives each joint's torque, and every joint without a part gets the cheapest catalog servo that clears it (static × safety factor, supply voltage, bus protocol). If a joint needs more than any catalog servo gives, it is reported, not faked. "6-DOF arm, 2 kg payload" needs about 70 N·m at the shoulder, and no Dynamixel in the catalog reaches it. **Reset to demo arm** restores the broken-elbow scenario.
+
+Specs for the stronger servos (XM430-W210, XH430-W350, XM540-W270, XH540-W270) are from the ROBOTIS e-manual at 12 V, and prices are from robotis.us (2026-10-24).
+
 ## What the graph shows
 - **Web UI graph panel** (`GET /graph?joint=elbow`, Cytoscape). It shows the build, the broken part, every candidate and the protocol, connector, mount and driver nodes that link them. Parts you own get a blue ring, rejected candidates are faded, and live offers hang off their vendor. Click a candidate to highlight its path. "What if we lose…" (`GET /what-if/{sku}`) lights up the failure chain. For example, the only U2D2 → Protocol 2.0 → every XL430 joint.
 - **Part photos** are hotlinked from the vendor listings (robotis.us, Digi-Key, Amazon) and kept on `Part.image_url`. No image files are in this repo.

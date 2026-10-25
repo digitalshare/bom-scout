@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn>=0.30",
     "trueforge-sdk>=0.180.0",
     "mcp>=2.3.0",
+    "python-multipart>=0.0.32",
 ]
 
 [dependency-groups]

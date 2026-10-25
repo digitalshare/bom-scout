@@ -10,11 +10,14 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import FastAPI
+import tempfile
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import agent, graph_view, trueforge_runner
+from . import agent, graph_view, sizing, trueforge_runner
+from .inputs import apply_bom, parse_bom, parse_urdf
 from .graph import connect
 
 WEB = Path(__file__).resolve().parents[2] / "web"
@@ -27,6 +30,10 @@ app = FastAPI(title="BOM Scout")
 class Ask(BaseModel):
     question: str
     live: bool = False
+
+
+class Describe(BaseModel):
+    description: str
 
 
 class Decision(BaseModel):
@@ -57,8 +64,15 @@ def team():
 
 
 @app.get("/graph")
-def graph(joint: str = "elbow"):
-    return graph_view.subgraph(connect(), TEAM, joint)
+def graph(joint: str | None = None):
+    g = connect()
+    joint = joint or graph_view.default_joint(g, TEAM)
+    if joint is None:
+        return {"joint": None, "broken": None, "nodes": [], "edges": []}
+    try:
+        return graph_view.subgraph(g, TEAM, joint)
+    except ValueError:  # the joint is from a build that has since been replaced
+        return graph_view.subgraph(g, TEAM, graph_view.default_joint(g, TEAM))
 
 
 @app.get("/what-if/{sku}")
@@ -69,6 +83,42 @@ def what_if(sku: str):
 @app.get("/spares")
 def spares():
     return graph_view.owned_spares(connect(), TEAM)
+
+
+def _catalog() -> dict:
+    return agent.Tools(connect(), TEAM, live=False).catalog
+
+
+@app.post("/build/describe")
+def build_describe(body: Describe):
+    try:
+        return agent.Tools(connect(), TEAM, live=False).load_build(body.description)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.post("/build/upload")
+async def build_upload(urdf: UploadFile = File(...), bom: UploadFile | None = File(None)):
+    with tempfile.TemporaryDirectory() as tmp:
+        urdf_path = Path(tmp) / "robot.urdf"
+        urdf_path.write_bytes(await urdf.read())
+        try:
+            build = parse_urdf(urdf_path)
+        except Exception as e:
+            raise HTTPException(422, f"could not read the URDF: {e}")
+        if bom is not None and bom.filename:
+            bom_path = Path(tmp) / "bom.csv"
+            bom_path.write_bytes(await bom.read())
+            apply_bom(build, parse_bom(bom_path))
+    try:
+        return sizing.load_new_build(connect(), TEAM, build, _catalog())
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.post("/build/reset")
+def build_reset():
+    return sizing.reset_demo(connect(), TEAM, _catalog())
 
 
 @app.post("/ask")

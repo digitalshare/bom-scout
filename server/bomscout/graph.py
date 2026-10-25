@@ -13,7 +13,7 @@ from .inputs import load_build_dir
 from .models import Build
 
 GRAPH_NAME = "bomscout"
-SPEC_FIELDS = ("v_min", "v_max", "stall_torque_nm", "stall_current_a", "mass_g", "v_out", "max_current_a", "image_url")
+SPEC_FIELDS = ("v_min", "v_max", "stall_torque_nm", "stall_current_a", "mass_g", "v_out", "max_current_a", "image_url", "list_price_usd")
 
 
 def connect(graph_name: str = GRAPH_NAME) -> Graph:
@@ -69,16 +69,13 @@ def load_team(g: Graph, build: Build, team: dict) -> None:
         """MERGE (t:Team {id: $id})
            SET t.name = $name, t.budget_cap_usd = $cap, t.safety_factor = $sf, t.bus_protocol = $bus,
                t.venue = $venue, t.venue_zip = $zip, t.tz = $tz, t.deadline_local = $deadline
-           MERGE (b:Build {id: $build}) SET b.payload_kg = $payload, b.tip_link = $tip
-           MERGE (t)-[:HAS_BUILD]->(b)
            WITH t
            MATCH (s:Part {sku: $supply})
            MERGE (t)-[:POWERED_BY]->(s)""",
         {
             "id": team["id"], "name": team["name"], "cap": team["budget_cap_usd"], "sf": team["safety_factor"],
             "bus": team["bus_protocol"], "venue": team["venue"]["address"], "zip": team["venue"]["zip"],
-            "tz": team["venue"]["tz"], "deadline": team["deadline_local"], "build": build.id,
-            "payload": build.payload_kg, "tip": build.tip_link, "supply": team["supply_sku"],
+            "tz": team["venue"]["tz"], "deadline": team["deadline_local"], "supply": team["supply_sku"],
         },
     )
     for item in team["owns"]:
@@ -86,8 +83,18 @@ def load_team(g: Graph, build: Build, team: dict) -> None:
             "MATCH (t:Team {id: $team}), (p:Part {sku: $sku}) MERGE (t)-[o:OWNS]->(p) SET o.qty = $qty",
             {"team": team["id"], "sku": item["sku"], "qty": item["qty"]},
         )
+    load_build(g, team["id"], build, broken={b["joint"] for b in team.get("broken", [])})
+
+
+def load_build(g: Graph, team: str, build: Build, broken: set[str] = frozenset()) -> None:
+    """The team's Build and its Joints, each with its static torque and (when known) the Part it uses."""
+    g.query(
+        """MATCH (t:Team {id: $team})
+           MERGE (b:Build {id: $build}) SET b.payload_kg = $payload, b.tip_link = $tip
+           MERGE (t)-[:HAS_BUILD]->(b)""",
+        {"team": team, "build": build.id, "payload": build.payload_kg, "tip": build.tip_link},
+    )
     torques = budget.joint_torques(build.model_dump()) if build.links else {}
-    broken = {b["joint"] for b in team.get("broken", [])}
     for j in build.joints:
         if j.type == "fixed":
             continue
@@ -101,6 +108,13 @@ def load_team(g: Graph, build: Build, team: dict) -> None:
             {"build": build.id, "id": f"{build.id}/{j.name}", "name": j.name, "torque": torques.get(j.name),
              "status": "broken" if j.name in broken else "ok", "sku": j.sku},
         )
+
+
+def replace_build(g: Graph, team: str, build: Build, broken: set[str] = frozenset()) -> None:
+    """Swaps the team's current build for a new one; the catalog, inventory, offers and carts stay."""
+    g.query("MATCH (:Team {id: $team})-[:HAS_BUILD]->(:Build)-[:HAS_JOINT]->(j:Joint) DETACH DELETE j", {"team": team})
+    g.query("MATCH (:Team {id: $team})-[:HAS_BUILD]->(b:Build) DETACH DELETE b", {"team": team})
+    load_build(g, team, build, broken)
 
 
 def load(catalog_path: Path, build_dir: Path, graph_name: str = GRAPH_NAME) -> Graph:

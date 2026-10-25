@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from falkordb import Graph
 from openai import OpenAI
 
-from . import budget, offers, substitutes
+from . import budget, offers, sizing, substitutes
 from .graph import connect, upsert_offers
 
 DEFAULT_MODEL = os.environ.get("BOMSCOUT_MODEL", "gpt-5.5")
@@ -35,6 +35,9 @@ How to work:
    earlier scrape; say so. Never invent a price, stock level or delivery date that a tool did not return.
 5. check_budget for the part you recommend (torque at that joint plus the whole power budget).
 6. propose_cart with the parts to buy. It waits for the team's approval; you never order anything yourself.
+
+For a new robot ("6-DOF arm, 2kg payload"), call load_build, then get_offers for the sized skus and propose_cart.
+If a joint is unsized, say what torque it needs and that no catalog servo reaches it.
 
 Answer the user's real question first: what can they have working by {deadline} today, and what arrives later.
 If nothing arrives today, say so plainly and give the best same-day fallback from what they own, with its gaps.
@@ -53,6 +56,8 @@ TOOL_SPECS = [
     {"name": "check_budget", "description": "Torque check for a sku on a joint, and the power budget with that sku swapped in.",
      "parameters": {"type": "object", "properties": {"joint": {"type": "string"}, "sku": {"type": "string"}},
                     "required": ["joint", "sku"], "additionalProperties": False}},
+    {"name": "load_build", "description": "Replace the team's build with a new robot from a one-line description (e.g. '6-DOF arm, 2kg payload'), size an actuator for every joint, and return the sizing table.",
+     "parameters": {"type": "object", "properties": {"description": {"type": "string"}}, "required": ["description"], "additionalProperties": False}},
     {"name": "propose_cart", "description": "Propose parts to buy. Creates a pending approval for the team; nothing is ordered.",
      "parameters": {"type": "object", "properties": {
          "summary": {"type": "string", "description": "one paragraph: what to do today, what arrives when"},
@@ -93,6 +98,11 @@ class Tools:
         res = asyncio.run(offers.get_offers(parts, self.catalog["vendors"], self.team_props["venue_zip"], self.team_props["tz"], live=self.live))
         upsert_offers(self.g, res)
         return {"results": res, "unknown_skus": [s for s in skus if s not in self.parts]}
+
+    def load_build(self, description: str) -> dict:
+        from .inputs import describe_to_build
+
+        return sizing.load_new_build(self.g, self.team, describe_to_build(description), self.catalog)
 
     def check_budget(self, joint: str, sku: str) -> dict:
         p = self.parts[sku]

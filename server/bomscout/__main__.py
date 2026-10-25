@@ -33,15 +33,18 @@ def _print_events(events, trueforge: bool) -> str | None:
     return pending
 
 
-def prewarm(team: str, batch: int = 4) -> list[dict]:
+def prewarm(team: str, batch: int = 4, live: bool = True, quiet: bool = False) -> list[dict]:
     """Live offers for every servo, adapter and bracket in the catalog, 4 skus at a time (Tools.get_offers also
     writes the Offer nodes and part photos to the graph). Prints which vendor answered live, from cache, or failed."""
-    tools = agent.Tools(connect(), team, live=True)
+    tools = agent.Tools(connect(), team, live=live)
     skus = [p["sku"] for p in tools.catalog["parts"] if p["category"] in ("servo", "adapter", "bracket")]
     results = []
     for i in range(0, len(skus), batch):
         results += tools.get_offers(skus[i:i + batch])["results"]
-        print(f"fetched {min(i + batch, len(skus))}/{len(skus)}", flush=True)
+        if not quiet:
+            print(f"fetched {min(i + batch, len(skus))}/{len(skus)}", flush=True)
+    if quiet:
+        return results
     vendors = sorted({r["vendor"] for r in results})
     print(f"\n{'sku':<16}" + "".join(f"{v:<22}" for v in vendors))
     for sku in skus:
@@ -78,6 +81,7 @@ def main() -> None:
 
     if args.cmd == "ingest":
         g = load(args.catalog, args.build_dir)
+        prewarm(args.team, live=False, quiet=True)  # the reset dropped the Offer nodes; restore them from the cache
         print("loaded", g.name, dict(g.query("MATCH (n) RETURN labels(n)[0] AS label, count(n) ORDER BY label").result_set))
     elif args.cmd == "subs":
         r = substitutes.find(connect(), args.team, args.joint)

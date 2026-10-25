@@ -10,7 +10,7 @@ import os
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from . import budget, graph_view
+from . import budget, graph_view, sizing
 from .agent import Tools
 from .graph import connect
 
@@ -20,6 +20,7 @@ TEAM = os.environ.get("BOMSCOUT_TEAM", "team_scout")
 # add_to_cart is also gated by name in trueforge/setup.py, since not every client honours the hints.
 READ = ToolAnnotations(read_only_hint=True)
 SCRAPE = ToolAnnotations(read_only_hint=True, open_world_hint=True)
+WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 SPEND = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True)
 
 server = MCPServer(
@@ -87,6 +88,15 @@ def get_budget_inputs(joint: str, sku: str) -> dict:
         "supply": {k: t.parts[supply_sku][k] for k in ("sku", "v_out", "max_current_a")},
         "server_answer": {"joint_torques": budget.joint_torques(build.model_dump()), **t.check_budget(joint, sku)},
     }
+
+
+@server.tool(annotations=WRITE)
+def load_build(description: str) -> dict:
+    """Replace the team's build with a new robot from a one-line description (e.g. "6-DOF arm, 2kg payload"):
+    an LLM drafts links and joints, the budget maths gives each joint's torque, and each joint gets the cheapest
+    catalog servo that clears it. Returns per-joint static/needed torque, chosen sku, price and why; unsized joints
+    have no catalog part strong enough."""
+    return _tools().load_build(description)
 
 
 @server.tool(annotations=READ)

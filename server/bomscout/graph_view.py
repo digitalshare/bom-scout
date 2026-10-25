@@ -31,6 +31,14 @@ def _label(node) -> str:
     return p.get("id") or p.get("name") or kind
 
 
+def default_joint(g: Graph, team: str) -> str | None:
+    """The broken joint if there is one, else the joint with the highest static torque that has a part."""
+    rows = g.query("""MATCH (:Team {id: $team})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j:Joint)-[:USES]->(:Part)
+                      RETURN j.name ORDER BY j.status = 'broken' DESC, j.static_torque_nm DESC LIMIT 1""",
+                   {"team": team}).result_set
+    return rows[0][0] if rows else None
+
+
 def subgraph(g: Graph, team: str, joint: str) -> dict:
     """The build, the broken part and every candidate with the spec nodes that link them, what the team owns,
     and the live offers per vendor. Node status drives colour: broken / dropin / gaps / rejected / owned / today."""
@@ -59,6 +67,8 @@ def subgraph(g: Graph, team: str, joint: str) -> dict:
 
     owned = {sku: qty for sku, qty in g.query(
         "MATCH (:Team {id: $team})-[o:OWNS]->(p:Part) RETURN p.sku, o.qty", {"team": team}).result_set}
+    joint_broken = g.query("""MATCH (:Team {id: $team})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j:Joint {name: $joint})
+                              RETURN j.status = 'broken'""", {"team": team, "joint": joint}).result_set[0][0]
     broken_joints = {name for (name,) in g.query(
         "MATCH (:Team {id: $team})-[:HAS_BUILD]->()-[:HAS_JOINT]->(j:Joint {status: 'broken'}) RETURN j.name", {"team": team}).result_set}
 
@@ -68,7 +78,7 @@ def subgraph(g: Graph, team: str, joint: str) -> dict:
         node = {"id": _key(n), "label": _label(n), "kind": kind if kind != "Part" else p.get("category", "part"),
                 "image_url": p.get("image_url"), "owned": owned.get(p.get("sku"), 0), "status": None, "detail": None}
         if kind == "Part" and p["sku"] == subs["broken"]:
-            node["status"] = "broken"
+            node["status"] = "broken" if joint_broken else "focus"  # the part on the joint being looked at
         elif kind == "Part" and p["sku"] in cands:
             c = cands[p["sku"]]
             node["status"] = "rejected" if not c["ok"] else ("gaps" if c["gaps"] else "dropin")

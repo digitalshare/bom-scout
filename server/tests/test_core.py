@@ -98,7 +98,6 @@ def test_prewarm_fetches_every_servo_adapter_and_bracket_in_batches(monkeypatch,
 
     class FakeTools:
         def __init__(self, g, team, live):
-            assert live
             self.catalog = CATALOG
 
         def get_offers(self, skus):
@@ -112,3 +111,29 @@ def test_prewarm_fetches_every_servo_adapter_and_bracket_in_batches(monkeypatch,
     wanted = [p["sku"] for p in CATALOG["parts"] if p["category"] in ("servo", "adapter", "bracket")]
     assert [s for batch in calls for s in batch] == wanted and all(len(b) <= 4 for b in calls)
     assert "live $1.00" in capsys.readouterr().out
+
+
+def test_sizing_picks_cheapest_servo_that_clears_each_joint():
+    from bomscout import sizing
+
+    build, _ = load_build_dir(SAMPLES / "hackathon_arm")
+    for j in build.joints:
+        j.sku = None
+    servos = [p for p in CATALOG["parts"] if p["category"] == "servo"]
+    rows = {r["joint"]: r for r in sizing.size_actuators(build, servos, 12.0, "dxl_p2", 1.5, {})}
+    # XL330 is cheaper but runs on 5 V; XL430 ($27.50) clears every joint of the desk arm
+    assert {r["sku"] for r in rows.values()} == {"xl430-w250-t"}
+    assert rows["shoulder"]["needed_nm"] == pytest.approx(0.8854 * 1.5, abs=1e-3)
+
+
+def test_sizing_reports_joints_no_catalog_servo_can_hold():
+    from bomscout import sizing
+
+    build, _ = load_build_dir(SAMPLES / "hackathon_arm")
+    for j in build.joints:
+        j.sku = None
+    build.payload_kg = 6.0  # about 21 N·m static at the shoulder, twice what an XM540 gives
+    servos = [p for p in CATALOG["parts"] if p["category"] == "servo"]
+    rows = {r["joint"]: r for r in sizing.size_actuators(build, servos, 12.0, "dxl_p2", 1.5, {})}
+    assert rows["shoulder"]["sku"] is None and "no catalog part strong enough" in rows["shoulder"]["why"]
+    assert rows["wrist_pitch"]["sku"] is not None
